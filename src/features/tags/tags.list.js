@@ -20,6 +20,8 @@ export default class TagsList {
     this.activeTab = "Type"; // Default tab
     this.modal = new ModalComponent();
     this.tagSelector = new TagSelector();
+    this.mobileMediaQuery = window.matchMedia("(max-width: 768px)");
+    this.isMobile = this.mobileMediaQuery.matches;
 
     // Table instances
     this.tables = {};
@@ -44,6 +46,22 @@ export default class TagsList {
       }
     };
     this.element.addEventListener("keydown", this.keydownHandler);
+
+    this.viewportChangeHandler = () => {
+      const nextIsMobile = this.mobileMediaQuery.matches;
+      if (nextIsMobile === this.isMobile) return;
+      this.isMobile = nextIsMobile;
+      this.rerender();
+    };
+
+    if (typeof this.mobileMediaQuery.addEventListener === "function") {
+      this.mobileMediaQuery.addEventListener(
+        "change",
+        this.viewportChangeHandler,
+      );
+    } else if (typeof this.mobileMediaQuery.addListener === "function") {
+      this.mobileMediaQuery.addListener(this.viewportChangeHandler);
+    }
   }
 
   destroy() {
@@ -66,6 +84,29 @@ export default class TagsList {
     if (this.tagSelector && typeof this.tagSelector.destroy === "function") {
       this.tagSelector.destroy();
     }
+    if (typeof this.mobileMediaQuery.removeEventListener === "function") {
+      this.mobileMediaQuery.removeEventListener(
+        "change",
+        this.viewportChangeHandler,
+      );
+    } else if (typeof this.mobileMediaQuery.removeListener === "function") {
+      this.mobileMediaQuery.removeListener(this.viewportChangeHandler);
+    }
+  }
+
+  rerender() {
+    if (!this.stats || !this.tagsData) return;
+    this.render(
+      this.isEditMode,
+      this.localTags,
+      this.queue,
+      this.stats,
+      this.tripTypeMap,
+      this.tripStatusMap,
+      this.timeframe,
+      this.tagsData,
+      this.canEdit,
+    );
   }
 
   render(
@@ -102,7 +143,7 @@ export default class TagsList {
             style: {
               borderColor: "#d9534f",
               color: "#d9534f",
-              marginRight: "10px",
+              marginRight: this.isMobile ? "0" : "10px",
             },
             onclick: () => {
               if (this.callbacks.onEditModeToggle) {
@@ -167,29 +208,6 @@ export default class TagsList {
       { id: "Category", label: "Category Tags" },
     ];
 
-    const tabsContainer = el(
-      "div",
-      {
-        className: "tags-tabs-container",
-        style: {
-          display: "flex",
-          gap: "10px",
-          borderBottom: "1px solid #444",
-          marginBottom: "20px",
-        },
-      },
-      ...tabs.map((tab) =>
-        el(
-          "button",
-          {
-            className: `tab-btn ${this.activeTab === tab.id ? "active" : ""}`,
-            dataset: { tab: tab.id },
-          },
-          tab.label,
-        ),
-      ),
-    );
-
     // Timeframe Selector options
     const timeframeOptions = [
       { value: "current_month", label: "Current Month" },
@@ -200,46 +218,48 @@ export default class TagsList {
       { value: "all_time", label: "All Time" },
     ];
 
-    const timeframeSelect = el(
-      "select",
-      { id: "tag-timeframe-select", "aria-label": "Timeframe" },
-      ...timeframeOptions.map((opt) =>
-        el(
-          "option",
-          { value: opt.value, selected: this.timeframe === opt.value },
-          opt.label,
+    const createTimeframeSelect = (id = "tag-timeframe-select") => {
+      const timeframeSelect = el(
+        "select",
+        { id: id, "aria-label": "Timeframe" },
+        ...timeframeOptions.map((opt) =>
+          el(
+            "option",
+            { value: opt.value, selected: this.timeframe === opt.value },
+            opt.label,
+          ),
         ),
-      ),
-    );
-    timeframeSelect.addEventListener("change", (e) => {
-      if (this.callbacks.onTimeframeChange) {
-        this.callbacks.onTimeframeChange(e.target.value);
-      }
-    });
+      );
+      timeframeSelect.addEventListener("change", (e) => {
+        if (this.callbacks.onTimeframeChange) {
+          this.callbacks.onTimeframeChange(e.target.value);
+        }
+      });
+      return timeframeSelect;
+    };
 
-    // Search Input
-    const searchInput = el(
-      "input",
-      withSearchInputAttributes({
-        id: "search-tag",
-        "aria-label": "Search Tags",
-        className: "tag-search-input column-search",
-        style: { flex: "1" },
-        dataset: { type: this.activeTab },
-        placeholder: `Search ${this.activeTab}...`,
-        value: this.searchTerms[this.activeTab] || "",
-      }),
-    );
-    searchInput.addEventListener("input", (e) => {
-      const type = e.target.dataset.type;
-      this.searchTerms[type] = e.target.value;
-      this.renderActiveTable(); // Only re-render the table content
-    });
+    const createSearchInput = (id = "search-tag") => {
+      const searchInput = el(
+        "input",
+        withSearchInputAttributes({
+          id: id,
+          "aria-label": "Search Tags",
+          className: "tag-search-input column-search",
+          style: { flex: "1" },
+          dataset: { type: this.activeTab },
+          placeholder: `Search ${this.activeTab}...`,
+          value: this.searchTerms[this.activeTab] || "",
+        }),
+      );
+      searchInput.addEventListener("input", (e) => {
+        const type = e.target.dataset.type;
+        this.searchTerms[type] = e.target.value;
+        this.renderActiveTable();
+      });
+      return searchInput;
+    };
 
-    const searchRow = el(
-      "div",
-      { style: { marginBottom: "10px", display: "flex", gap: "10px" } },
-      searchInput,
+    const createAddTagButton = () =>
       this.isEditMode && this.canEdit
         ? el(
             "button",
@@ -247,7 +267,8 @@ export default class TagsList {
               className: "secondary-btn add-tag-icon-btn",
               dataset: { type: this.activeTab },
               style: {
-                width: "38px",
+                width: this.isMobile ? "44px" : "38px",
+                minWidth: this.isMobile ? "44px" : "38px",
                 padding: "0",
                 display: "flex",
                 alignItems: "center",
@@ -274,25 +295,54 @@ export default class TagsList {
             },
             "+",
           )
-        : null,
-    );
+        : null;
 
-    const section = el(
-      "div",
-      { className: "section" },
+    const createTabsContainer = () =>
       el(
         "div",
+        { className: "tags-tabs-container" },
+        ...tabs.map((tab) =>
+          el(
+            "button",
+            {
+              className: `tab-btn ${this.activeTab === tab.id ? "active" : ""}`,
+              dataset: { tab: tab.id },
+            },
+            tab.label,
+          ),
+        ),
+      );
+
+    const createMobileTabSelect = () => {
+      const mobileTabSelect = el(
+        "select",
         {
-          className: "tags-header-actions",
-          style: {
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "15px",
-          },
+          id: "tag-view-select",
+          className: "theme-select tags-mobile-select",
+          "aria-label": "Tag view",
         },
-        el("h2", {}, "Manage Tags"),
-        el(
+        ...tabs.map((tab) =>
+          el(
+            "option",
+            { value: tab.id, selected: this.activeTab === tab.id },
+            tab.label,
+          ),
+        ),
+      );
+      mobileTabSelect.addEventListener("change", (e) => {
+        this.activeTab = e.target.value;
+        this.rerender();
+      });
+      return mobileTabSelect;
+    };
+
+    const createDesktopControls = () => {
+      const timeframeSelect = createTimeframeSelect();
+      const searchInput = createSearchInput();
+      const addTagButton = createAddTagButton();
+
+      return {
+        headerControls: el(
           "div",
           { className: "header-controls-group" },
           el(
@@ -307,17 +357,106 @@ export default class TagsList {
           ),
           el("div", { className: "actions" }, ...actionButtons),
         ),
+        tabsContainer: createTabsContainer(),
+        searchRow: el(
+          "div",
+          { className: "tags-search-row" },
+          searchInput,
+          addTagButton,
+        ),
+      };
+    };
+
+    const createMobileToolbar = () => {
+      const timeframeSelect = createTimeframeSelect("tag-timeframe-mobile");
+      const searchInput = createSearchInput("search-tag-mobile");
+      const addTagButton = createAddTagButton();
+
+      return el(
+        "div",
+        { className: "tags-mobile-toolbar" },
+        el(
+          "div",
+          {
+            className:
+              "tags-mobile-toolbar__row tags-mobile-toolbar__row--selectors",
+          },
+          el(
+            "label",
+            { className: "tags-mobile-field" },
+            el("span", { className: "tags-mobile-field__label" }, "View"),
+            createMobileTabSelect(),
+          ),
+          el(
+            "label",
+            { className: "tags-mobile-field" },
+            el("span", { className: "tags-mobile-field__label" }, "Timeframe"),
+            timeframeSelect,
+          ),
+        ),
+        el(
+          "div",
+          {
+            className:
+              "tags-mobile-toolbar__row tags-mobile-toolbar__row--search",
+          },
+          el(
+            "label",
+            { className: "tags-mobile-field tags-mobile-field--search" },
+            el("span", { className: "tags-mobile-field__label" }, "Search"),
+            searchInput,
+          ),
+          addTagButton,
+        ),
+        actionButtons.length > 0
+          ? el(
+              "div",
+              {
+                className:
+                  "tags-mobile-toolbar__row tags-mobile-toolbar__row--actions",
+              },
+              ...actionButtons,
+            )
+          : null,
+      );
+    };
+
+    const desktopControls = !this.isMobile ? createDesktopControls() : null;
+    const mobileToolbar = this.isMobile ? createMobileToolbar() : null;
+
+    const section = el(
+      "div",
+      { className: "section tags-section" },
+      el(
+        "div",
+        {
+          className: "tags-header-actions tags-header-actions--list",
+          style: {
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "15px",
+          },
+        },
+        el(
+          "div",
+          { className: "tags-heading-block" },
+          el("h2", {}, "Manage Tags"),
+          el(
+            "p",
+            { className: "tags-heading-caption" },
+            "Review and maintain trip, type, and category tags.",
+          ),
+        ),
+        desktopControls ? desktopControls.headerControls : null,
       ),
-      tabsContainer,
-      searchRow,
+      mobileToolbar,
+      desktopControls ? desktopControls.tabsContainer : null,
+      desktopControls ? desktopControls.searchRow : null,
       el(
         "div",
         { className: "tags-container" },
-        el(
-          "div",
-          { id: "active-tab-content" },
-          el("div", { id: "tags-table-container" }),
-        ),
+        el("div", { id: "tags-content-container" }),
       ),
     );
 
@@ -327,7 +466,7 @@ export default class TagsList {
 
   renderActiveTable() {
     const type = this.activeTab;
-    const container = this.element.querySelector(`#tags-table-container`);
+    const container = this.element.querySelector("#tags-content-container");
     if (!container) return;
 
     // Determine source of tag list (edit mode vs normal)
@@ -367,6 +506,14 @@ export default class TagsList {
 
       return row;
     });
+
+    if (this.isMobile) {
+      this.renderMobileCards(container, type, data);
+      return;
+    }
+
+    const tableContainer = el("div", { id: "tags-table-container" });
+    replace(container, tableContainer);
 
     const columns = [{ key: "tag", label: "Name", type: "text" }];
 
@@ -620,7 +767,7 @@ export default class TagsList {
       }
     }
 
-    const table = new SortableTable(container, {
+    const table = new SortableTable(tableContainer, {
       columns: columns,
       initialSortField: initialSortField,
       initialSortAsc: initialSortAsc,
@@ -646,6 +793,288 @@ export default class TagsList {
 
     // Store reference for potential future updates
     this.tables[type] = table;
+  }
+
+  renderMobileCards(container, type, data) {
+    if (data.length === 0) {
+      replace(
+        container,
+        el(
+          "div",
+          { className: "tags-mobile-empty-state" },
+          "No matching tags found.",
+        ),
+      );
+      return;
+    }
+
+    replace(
+      container,
+      el(
+        "div",
+        { className: "tags-mobile-card-list" },
+        ...data.map((item) => this.createMobileCard(type, item)),
+      ),
+    );
+  }
+
+  createMobileCard(type, item) {
+    const status = item.status || "Active";
+    const canOpenDetails =
+      !this.isEditMode && typeof this.callbacks.onTagClick === "function";
+
+    const card = el(
+      "article",
+      {
+        className: `tag-mobile-card ${canOpenDetails ? "tag-mobile-card--interactive" : ""}`,
+        tabindex: canOpenDetails ? "0" : null,
+        role: canOpenDetails ? "button" : null,
+      },
+      el(
+        "div",
+        { className: "tag-mobile-card__header" },
+        el(
+          "div",
+          { className: "tag-mobile-card__title-group" },
+          el(
+            "div",
+            { className: "tag-mobile-card__eyebrow" },
+            type === "Type" ? "Trip Type" : type,
+          ),
+          el("div", { className: "tag-mobile-card__title" }, item.tag),
+        ),
+        el(
+          "div",
+          { className: "tag-mobile-card__count" },
+          `${item.count} use${item.count === 1 ? "" : "s"}`,
+        ),
+      ),
+      type === "Trip/Event"
+        ? el(
+            "div",
+            { className: "tag-mobile-card__meta" },
+            el(
+              "div",
+              { className: "tag-mobile-card__meta-group" },
+              el(
+                "span",
+                { className: "tag-mobile-card__meta-label" },
+                "Status",
+              ),
+              el(
+                "span",
+                {
+                  className: "status-toggle-btn",
+                  style: {
+                    color:
+                      {
+                        Active: "#888",
+                        Completed: "#5cb85c",
+                        Investment: "#5bc0de",
+                      }[status] || "#888",
+                    fontWeight: "bold",
+                    fontSize: "1.2em",
+                    cursor:
+                      this.canEdit && !this.isEditMode ? "pointer" : "default",
+                  },
+                  title:
+                    this.canEdit && !this.isEditMode
+                      ? `${status} - Click to cycle`
+                      : status,
+                  dataset: { tag: item.tag, status: status },
+                  tabindex: this.canEdit && !this.isEditMode ? "0" : "-1",
+                  role: "button",
+                },
+                { Active: "◯", Completed: "✅", Investment: "🚀" }[status] ||
+                  "◯",
+              ),
+            ),
+            el(
+              "div",
+              { className: "tag-mobile-card__meta-group" },
+              el("span", { className: "tag-mobile-card__meta-label" }, "Type"),
+              this.createTripTypeControl(item),
+            ),
+          )
+        : null,
+      el(
+        "div",
+        { className: "tag-mobile-card__metrics" },
+        this.createMetricCard(
+          "Income",
+          formatCurrency(item.income),
+          "positive",
+        ),
+        this.createMetricCard(
+          "Expense",
+          formatCurrency(item.expense),
+          "negative",
+        ),
+        this.createMetricCard("Net", formatCurrency(Math.abs(item.net)), {
+          positive: item.net > 0,
+          negative: item.net < 0,
+        }),
+      ),
+      this.isEditMode && this.canEdit
+        ? el(
+            "div",
+            { className: "tag-mobile-card__actions" },
+            el(
+              "button",
+              {
+                className: "icon-btn rename-btn tag-mobile-card__action-btn",
+                title: "Rename",
+                onclick: (e) => {
+                  e.stopPropagation();
+                  if (this.callbacks.onTagRename)
+                    this.callbacks.onTagRename(item.type, item.tag);
+                },
+              },
+              "Rename",
+            ),
+            el(
+              "button",
+              {
+                className: "icon-btn delete-btn tag-mobile-card__action-btn",
+                title: "Delete",
+                onclick: (e) => {
+                  e.stopPropagation();
+                  if (this.callbacks.onTagDelete)
+                    this.callbacks.onTagDelete(item.type, item.tag);
+                },
+              },
+              "Delete",
+            ),
+          )
+        : null,
+    );
+
+    if (canOpenDetails) {
+      const openDetails = (event) => {
+        const target = event.target;
+        const isInteractiveElement =
+          target.classList.contains("add-tag-placeholder") ||
+          target.closest(".tag-pill") ||
+          target.classList.contains("remove-btn") ||
+          target.classList.contains("status-toggle-btn");
+
+        if (!isInteractiveElement) {
+          this.callbacks.onTagClick(type, item.tag);
+        }
+      };
+
+      card.addEventListener("click", openDetails);
+      card.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        openDetails(event);
+      });
+    }
+
+    return card;
+  }
+
+  createTripTypeControl(item) {
+    if (!this.canEdit) {
+      return item.tripType
+        ? el(
+            "span",
+            {
+              className: "tag-pill",
+              style: { cursor: "default" },
+            },
+            el("span", { className: "tag-text" }, item.tripType),
+          )
+        : el("span", { className: "tag-mobile-card__meta-value" }, "No Type");
+    }
+
+    if (this.isEditMode) {
+      return item.tripType
+        ? el(
+            "span",
+            {
+              className: "tag-pill",
+              dataset: { tag: item.tag, type: "Type" },
+              tabIndex: "-1",
+              role: "button",
+              style: {
+                opacity: "0.7",
+                cursor: "not-allowed",
+              },
+            },
+            el("span", { className: "tag-text" }, item.tripType),
+          )
+        : el(
+            "span",
+            {
+              className: "tag-mobile-card__meta-value",
+              style: { opacity: "0.7" },
+            },
+            "No Type",
+          );
+    }
+
+    if (item.tripType) {
+      return el(
+        "span",
+        {
+          className: "tag-pill",
+          dataset: { tag: item.tag, type: "Type" },
+          tabIndex: "0",
+          role: "button",
+          style: { cursor: "pointer" },
+        },
+        el("span", { className: "tag-text" }, item.tripType),
+        el(
+          "span",
+          {
+            className: "remove-btn",
+            title: "Remove Type",
+            tabIndex: "0",
+            role: "button",
+            style: { cursor: "pointer" },
+          },
+          "×",
+        ),
+      );
+    }
+
+    return el(
+      "span",
+      {
+        className: "add-tag-placeholder",
+        dataset: { tag: item.tag, type: "Type" },
+        title: "Add Type",
+        tabIndex: "0",
+        role: "button",
+        style: { cursor: "pointer" },
+      },
+      "+ Add Type",
+    );
+  }
+
+  createMetricCard(label, value, tone) {
+    const toneClass =
+      typeof tone === "string"
+        ? tone
+        : tone?.positive
+          ? "positive"
+          : tone?.negative
+            ? "negative"
+            : "";
+
+    return el(
+      "div",
+      { className: "tag-mobile-card__metric" },
+      el("div", { className: "tag-mobile-card__metric-label" }, label),
+      el(
+        "div",
+        {
+          className: `tag-mobile-card__metric-value ${toneClass}`.trim(),
+        },
+        value,
+      ),
+    );
   }
 
   handleInteractiveClick(e) {
