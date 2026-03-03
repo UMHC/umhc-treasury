@@ -218,65 +218,63 @@ export default class TagsList {
     });
 
     // Search Input
-    const searchInput = el("input", withSearchInputAttributes({
-      id: "search-tag",
-      "aria-label": "Search Tags",
-      className: "tag-search-input column-search",
-      style: { flex: "1" },
-      dataset: { type: this.activeTab },
-      placeholder: `Search ${this.activeTab}...`,
-      value: this.searchTerms[this.activeTab] || "",
-    }));
+    const searchInput = el(
+      "input",
+      withSearchInputAttributes({
+        id: "search-tag",
+        "aria-label": "Search Tags",
+        className: "tag-search-input column-search",
+        style: { flex: "1" },
+        dataset: { type: this.activeTab },
+        placeholder: `Search ${this.activeTab}...`,
+        value: this.searchTerms[this.activeTab] || "",
+      }),
+    );
     searchInput.addEventListener("input", (e) => {
       const type = e.target.dataset.type;
       this.searchTerms[type] = e.target.value;
       this.renderActiveTable(); // Only re-render the table content
     });
 
-    const activeTabContent = el(
+    const searchRow = el(
       "div",
-      { id: "active-tab-content" },
-      el(
-        "div",
-        { style: { marginBottom: "10px", display: "flex", gap: "10px" } },
-        searchInput,
-        this.isEditMode && this.canEdit
-          ? el(
-              "button",
-              {
-                className: "secondary-btn add-tag-icon-btn",
-                dataset: { type: this.activeTab },
-                style: {
-                  width: "38px",
-                  padding: "0",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "1.2em",
-                },
-                title: `Add new ${this.activeTab}`,
-                onclick: async (e) => {
-                  try {
-                    const type = e.currentTarget.dataset.type;
-                    const value = await this.modal.prompt(
-                      `Enter new name for ${type} tag:`,
-                      "",
-                      "Add Tag",
-                    );
-                    if (value && value.trim() !== "") {
-                      if (this.callbacks.onTagAdd)
-                        this.callbacks.onTagAdd(type, value.trim());
-                    }
-                  } catch (err) {
-                    console.error("Failed to add tag:", err);
-                  }
-                },
+      { style: { marginBottom: "10px", display: "flex", gap: "10px" } },
+      searchInput,
+      this.isEditMode && this.canEdit
+        ? el(
+            "button",
+            {
+              className: "secondary-btn add-tag-icon-btn",
+              dataset: { type: this.activeTab },
+              style: {
+                width: "38px",
+                padding: "0",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "1.2em",
               },
-              "+",
-            )
-          : null,
-      ),
-      el("div", { id: "tags-table-container" }),
+              title: `Add new ${this.activeTab}`,
+              onclick: async (e) => {
+                try {
+                  const type = e.currentTarget.dataset.type;
+                  const value = await this.modal.prompt(
+                    `Enter new name for ${type} tag:`,
+                    "",
+                    "Add Tag",
+                  );
+                  if (value && value.trim() !== "") {
+                    if (this.callbacks.onTagAdd)
+                      this.callbacks.onTagAdd(type, value.trim());
+                  }
+                } catch (err) {
+                  console.error("Failed to add tag:", err);
+                }
+              },
+            },
+            "+",
+          )
+        : null,
     );
 
     const section = el(
@@ -311,7 +309,16 @@ export default class TagsList {
         ),
       ),
       tabsContainer,
-      el("div", { className: "tags-container" }, activeTabContent),
+      searchRow,
+      el(
+        "div",
+        { className: "tags-container" },
+        el(
+          "div",
+          { id: "active-tab-content" },
+          el("div", { id: "tags-table-container" }),
+        ),
+      ),
     );
 
     replace(this.element, section);

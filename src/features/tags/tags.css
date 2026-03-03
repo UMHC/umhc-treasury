@@ -119,8 +119,7 @@
 }
 
 .theme-select:focus {
-  outline: 2px solid #f0ad4e;
-  outline-offset: 2px;
+  outline: none;
   border-color: #f0ad4e;
 }
 
@@ -304,8 +303,7 @@
 }
 
 .add-tag-input:focus {
-  outline: 2px solid #f0ad4e;
-  outline-offset: 2px;
+  outline: none;
   border-color: #f0ad4e;
 }
 
