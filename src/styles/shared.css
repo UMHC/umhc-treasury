@@ -245,3 +245,81 @@ input:checked + .slider:before {
 .hidden {
   display: none !important;
 }
+
+@media (max-width: 768px) {
+  :root {
+    --mobile-shell-padding: 14px;
+    --mobile-section-padding: 14px;
+    --mobile-section-gap: 16px;
+    --mobile-control-height: 40px;
+    --mobile-control-padding-x: 12px;
+    --mobile-control-padding-y: 8px;
+    --mobile-control-gap: 10px;
+    --mobile-header-gap: 8px;
+    --mobile-table-cell-padding: 8px;
+  }
+
+  .section {
+    margin-bottom: var(--mobile-section-gap);
+    padding: var(--mobile-section-padding);
+  }
+
+  .section h2 {
+    padding-bottom: var(--mobile-header-gap);
+    margin-bottom: 0;
+  }
+
+  .section input[type="file"] {
+    width: 100%;
+    margin-left: 0;
+    margin-top: 12px;
+    margin-bottom: 12px;
+    box-sizing: border-box;
+  }
+
+  .section pre,
+  .section table,
+  .section-table {
+    margin-top: var(--mobile-control-gap);
+  }
+
+  .section pre {
+    padding: 12px;
+  }
+
+  .section th,
+  .section td,
+  .section-table th,
+  .section-table td {
+    padding: var(--mobile-table-cell-padding);
+  }
+
+  .secondary-btn,
+  .view-toggle-btn,
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  select,
+  textarea {
+    min-height: var(--mobile-control-height);
+    padding: var(--mobile-control-padding-y) var(--mobile-control-padding-x);
+    box-sizing: border-box;
+  }
+
+  .secondary-btn,
+  .view-toggle-btn {
+    padding-left: var(--mobile-control-padding-x);
+    padding-right: var(--mobile-control-padding-x);
+    line-height: 1.2;
+  }
+
+  .view-toggle {
+    margin: var(--mobile-control-gap) 0;
+  }
+
+  .timeframe-selector {
+    gap: var(--mobile-control-gap);
+  }
+
+  .timeframe-selector label {
+    white-space: nowrap;
+  }
+}

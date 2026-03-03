@@ -346,6 +346,50 @@
 
 @media (max-width: 768px) {
   /* Refinements for smaller phones */
+  .main-header {
+    padding-left: var(--mobile-shell-padding);
+    padding-right: var(--mobile-shell-padding);
+  }
+
+  .header-content {
+    gap: var(--mobile-header-gap);
+  }
+
+  .title-row {
+    gap: var(--mobile-header-gap);
+  }
+
+  .content-wrapper {
+    padding: var(--mobile-shell-padding);
+  }
+
+  .error-banner {
+    padding: 10px 12px;
+    margin-bottom: var(--mobile-section-gap);
+  }
+
+  .main-content .secondary-btn,
+  .main-content .view-toggle-btn,
+  .main-content .action-btn,
+  .main-content
+    input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  .main-content select,
+  .main-content textarea {
+    min-height: var(--mobile-control-height);
+    padding: var(--mobile-control-padding-y) var(--mobile-control-padding-x);
+    box-sizing: border-box;
+  }
+
+  .main-content .secondary-btn,
+  .main-content .view-toggle-btn,
+  .main-content .action-btn {
+    line-height: 1.2;
+  }
+
+  .main-content .timeframe-selector select {
+    padding-right: 30px;
+  }
+
   .sidebar .logo-section {
     display: none; /* Hide logo to save space on small phones */
   }

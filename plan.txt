@@ -1,0 +1,150 @@
+UMHC Treasurer Mobile Improvement Plan
+
+Goal
+Improve how the website looks and functions on phones, with a specific focus on reducing unnecessary vertical space, while keeping the PC version unchanged.
+
+Core Principle
+Every change in this plan is mobile additive and desktop preserving.
+- Desktop remains the default render path.
+- Mobile changes are gated by narrow-screen breakpoints or explicit mobile-only UI state.
+- No service, store, or backend contract changes.
+- No desktop layout should be refactored unless the change is provably neutral on wide screens.
+
+Architecture Constraint
+Keep the existing design philosophy intact:
+Action -> Service -> State -> UI Update
+
+This means:
+- UI changes stay in the component and styling layers.
+- Business logic remains in services and logic modules.
+- State remains the single source of truth.
+- Mobile behavior should not introduce DOM-driven hacks that bypass component/state structure.
+
+Step 1: Add a shared mobile density layer
+Status: Complete (March 3, 2026)
+
+Files:
+- src/styles/shared.css
+- src/App.css
+
+Work:
+- Add mobile spacing tokens for section padding, control height, gaps, and header spacing.
+- Reduce wrapper and section padding only under phone breakpoints.
+- Normalize compact button and input sizing for narrow screens.
+
+Desktop-safe guardrails:
+- Only add rules inside phone breakpoints.
+- Do not change existing desktop token values.
+- Do not rename or repurpose existing shared classes used on desktop.
+
+Step 2: Create shared mobile disclosure patterns
+Files:
+- src/shared/
+- shared CSS files as needed
+
+Work:
+- Add a reusable collapsible section pattern for filters and secondary controls.
+- Add a compact summary row pattern such as "2 trips selected, 5 categories selected".
+- Add a compact action cluster pattern for phone-only secondary actions.
+
+Desktop-safe guardrails:
+- Shared components must render expanded by default unless explicitly told otherwise.
+- Existing desktop feature components should keep their current structure until individually migrated.
+- Mobile-only collapse state should not be global unless multiple screens truly need shared persistence.
+
+Step 3: Transactions mobile compression
+Files:
+- src/features/transactions/transactions.component.js
+- src/features/transactions/transactions.css
+- src/features/transactions/transactions.filters.js
+
+Work:
+- Replace the always-open filter block on phones with a collapsed "Filters" section.
+- Show active filter counts or chips while collapsed.
+- Keep the save button primary and move secondary actions into a compact phone layout.
+- Reduce tag selector heights and internal spacing on phones.
+- If needed later, add a mobile-friendly table wrapper or row-card view, but only after control compression.
+
+Desktop-safe guardrails:
+- Do not change filter logic, only the presentation shell around it.
+- Desktop keeps the current always-visible controls layout.
+- Existing IDs and callbacks stay intact so bulk tagging and save flows are unaffected.
+- Any new mobile state such as filtersExpanded remains local to TransactionsComponent.
+
+Step 4: Analysis mobile compression
+Files:
+- src/features/analysis/analysis.component.js
+- src/features/analysis/analysis.css
+- src/features/analysis/analysis.controls.js
+- src/features/analysis/analysis.filters.js
+
+Work:
+- Make the mobile flow chart-first.
+- Collapse Scope, Quick Views, Customization, and Filters into independently expandable sections.
+- Convert large quick-report buttons into tighter chips or a horizontal scroller on phones.
+- Compress summary cards so they do not each consume a full row unless necessary.
+- Keep the data table hidden behind the existing toggle, but make the toggle and action row more compact.
+
+Desktop-safe guardrails:
+- Preserve the current desktop order and open sections.
+- Keep analysis state shape unchanged.
+- Do not alter calculation code or chart generation pathways.
+- Any markup change in controls must preserve the same element IDs and callback wiring.
+
+Step 5: Tags mobile compression
+Files:
+- src/features/tags/tags.list.js
+- src/features/tags/tags.css
+- related tags subviews as needed
+
+Work:
+- Replace wide tab buttons with a compact segmented control or select on phones.
+- Merge timeframe, search, and edit/save actions into a tighter stacked toolbar.
+- Reduce heading chrome above the table or list.
+- If table density is still poor, create a phone-only list or card presentation for tag rows.
+
+Desktop-safe guardrails:
+- Desktop keeps the existing tabs and current table presentation.
+- Edit mode behavior and queued-change logic remain untouched.
+- Phone-specific rendering must use the same callbacks for save, edit, rename, add, and delete.
+
+Step 6: App shell phone polish
+Files:
+- src/App.js
+- src/App.css
+
+Work:
+- Reduce phone header height and content padding.
+- Improve the mobile menu sheet so it consumes less perceived space.
+- Keep the page title and core action visible without forcing excess top spacing.
+
+Desktop-safe guardrails:
+- Do not alter desktop sidebar width, header layout, or navigation behavior.
+- Avoid changing root shell structure unless required for phone overflow control.
+- If shell markup changes, they must remain layout-neutral above the mobile breakpoint.
+
+Step 7: Desktop regression pass after each feature
+Work:
+- Check each screen on desktop immediately after its mobile pass.
+- Verify spacing, button placement, tables, and action flows.
+- Confirm keyboard and focus behavior still works.
+
+Desktop-safe guardrails:
+- No batching all mobile work before checking desktop.
+- If a feature needs desktop CSS adjustments to support mobile, stop and isolate why before proceeding.
+- Prefer duplication of small presentation wrappers over risky cross-screen rewrites.
+
+Acceptance Criteria
+- Desktop at existing breakpoints is visually unchanged or negligibly changed.
+- Phone screens are shorter, with fewer always-open controls.
+- Primary actions remain visible and secondary controls are progressively disclosed.
+- The architecture stays intact: action -> service -> state -> UI update.
+
+Recommended Execution Order
+1. Shared mobile density layer
+2. Shared collapsible pattern
+3. Transactions
+4. Analysis
+5. Tags
+6. Shell polish
+7. Dashboard cleanup if still needed
