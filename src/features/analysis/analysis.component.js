@@ -10,6 +10,63 @@ import AnalysisChart from "./analysis.chart.js";
 import AnalysisTable from "./analysis.table.js";
 import { el, replace } from "../../core/dom.js";
 
+const TIMEFRAME_LABELS = {
+  current_month: "Current Month",
+  past_30_days: "Past 30 Days",
+  past_3_months: "Past 3 Months",
+  past_6_months: "Past 6 Months",
+  past_year: "Past Year",
+  all_time: "All Time",
+  custom: "Custom",
+};
+
+const STATUS_LABELS = {
+  All: "All Trips",
+  Active: "Active Only",
+  Completed: "Completed Only",
+  Investment: "Investment Only",
+};
+
+const METRIC_LABELS = {
+  balance: "Balance",
+  income: "Income",
+  expense: "Expenses",
+  net: "Net Income",
+};
+
+const CHART_TYPE_LABELS = {
+  bar: "Bar",
+  line: "Line",
+  pie: "Pie",
+  doughnut: "Doughnut",
+};
+
+const GROUP_LABELS = {
+  date: "Date",
+  category: "Category",
+  trip: "Trip",
+  none: "None",
+};
+
+const TIME_UNIT_LABELS = {
+  day: "Daily",
+  week: "Weekly",
+  month: "Monthly",
+  year: "Yearly",
+};
+
+const formatSummaryDate = (value) => {
+  if (!value) return "";
+
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+};
+
 class AnalysisComponent {
   constructor(element) {
     this.element = element;
@@ -18,6 +75,10 @@ class AnalysisComponent {
     this.unsubscribeHandlers = [];
     this.timeouts = [];
     this.eventListeners = [];
+    this.scopeExpanded = false;
+    this.quickViewsExpanded = false;
+    this.customizationExpanded = false;
+    this.filtersExpanded = false;
 
     // Default State
     this.state = {
@@ -98,7 +159,7 @@ class AnalysisComponent {
       id: "analysis-controls-container",
     });
     const filtersContainer = el("div", {
-      className: "control-section tag-filters-section",
+      className: "analysis-filters-panel",
       id: "analysis-filters-container",
     });
 
@@ -133,6 +194,7 @@ class AnalysisComponent {
     );
 
     const tableContainer = el("div", {
+      className: "analysis-data-table-panel",
       id: "analysis-data-table-container",
       style: { display: "none" },
     });
@@ -174,35 +236,55 @@ class AnalysisComponent {
     if (!controlsContainer) {
       console.error("Analysis: Controls container not found");
     } else {
-      this.controlsComponent = new AnalysisControls(controlsContainer, {
-        onTimeframeChange: (val) => this.handleTimeframeChange(val),
-        onStatusChange: (val) => {
-          this.state.tripStatusFilter = val;
-          this.updateTagSelectors();
-          this.generateChart();
+      this.controlsComponent = new AnalysisControls(
+        controlsContainer,
+        {
+          onTimeframeChange: (val) => this.handleTimeframeChange(val),
+          onStatusChange: (val) => {
+            this.state.tripStatusFilter = val;
+            this.updateTagSelectors();
+            this.generateChart();
+          },
+          onDateChange: (type, val) => {
+            if (type === "start") this.state.startDate = val;
+            else this.state.endDate = val;
+            this.state.timeframe = "custom";
+            this.updateControls();
+            this.generateChart();
+          },
+          onMetricChange: (val) => {
+            this.state.metric = val;
+            if (val === "balance") {
+              this.state.chartType = "line";
+            }
+            this.updateControls();
+            this.generateChart();
+          },
+          onChartTypeChange: (val) => {
+            this.state.chartType = val;
+            this.generateChart();
+          },
+          onGroupChange: (type, val) => this.handleGroupChange(type, val),
+          onPresetClick: (preset) => this.applyPreset(preset),
         },
-        onDateChange: (type, val) => {
-          if (type === "start") this.state.startDate = val;
-          else this.state.endDate = val;
-          this.state.timeframe = "custom";
-          this.updateControls();
-          this.generateChart();
+        {
+          scopeSummary: this.getScopeSummaryConfig(),
+          scopeExpanded: this.scopeExpanded,
+          onScopeToggle: (expanded) => {
+            this.scopeExpanded = expanded;
+          },
+          quickViewsSummary: this.getQuickViewsSummaryConfig(),
+          quickViewsExpanded: this.quickViewsExpanded,
+          onQuickViewsToggle: (expanded) => {
+            this.quickViewsExpanded = expanded;
+          },
+          customizationSummary: this.getCustomizationSummaryConfig(),
+          customizationExpanded: this.customizationExpanded,
+          onCustomizationToggle: (expanded) => {
+            this.customizationExpanded = expanded;
+          },
         },
-        onMetricChange: (val) => {
-          this.state.metric = val;
-          if (val === "balance") {
-            this.state.chartType = "line";
-          }
-          this.updateControls();
-          this.generateChart();
-        },
-        onChartTypeChange: (val) => {
-          this.state.chartType = val;
-          this.generateChart();
-        },
-        onGroupChange: (type, val) => this.handleGroupChange(type, val),
-        onPresetClick: (preset) => this.applyPreset(preset),
-      });
+      );
       this.updateControls();
     }
 
@@ -213,25 +295,35 @@ class AnalysisComponent {
     if (!filtersContainer) {
       console.error("Analysis: Filters container not found");
     } else {
-      this.filtersComponent = new AnalysisFilters(filtersContainer, {
-        onFilterChange: () => {
-          this.generateChart();
-          this.updateTagSelectors();
+      this.filtersComponent = new AnalysisFilters(
+        filtersContainer,
+        {
+          onFilterChange: () => {
+            this.generateChart();
+            this.updateTagSelectors();
+          },
+          onSearchChange: (type, term) => {
+            if (type === "Category") {
+              this.state.categorySearchTerm = term.toLowerCase();
+            } else if (type === "Type") {
+              this.state.typeSearchTerm = term.toLowerCase();
+            } else {
+              this.state.tripSearchTerm = term.toLowerCase();
+            }
+            this.updateTagSelectors();
+          },
+          onTypeChange: (typeTag, isChecked) => {
+            this.handleTypeChange(typeTag, isChecked);
+          },
         },
-        onSearchChange: (type, term) => {
-          if (type === "Category") {
-            this.state.categorySearchTerm = term.toLowerCase();
-          } else if (type === "Type") {
-            this.state.typeSearchTerm = term.toLowerCase();
-          } else {
-            this.state.tripSearchTerm = term.toLowerCase();
-          }
-          this.updateTagSelectors();
+        {
+          summary: this.getFiltersSummaryConfig(),
+          expanded: this.filtersExpanded,
+          onToggle: (expanded) => {
+            this.filtersExpanded = expanded;
+          },
         },
-        onTypeChange: (typeTag, isChecked) => {
-          this.handleTypeChange(typeTag, isChecked);
-        },
-      });
+      );
     }
 
     // 3. Chart
@@ -369,6 +461,11 @@ class AnalysisComponent {
     if (adjustments && adjustments.chartType) {
       this.state.chartType = adjustments.chartType;
     }
+    this.controlsComponent.updateDisclosureSummaries({
+      scope: this.getScopeSummaryConfig(),
+      quickViews: this.getQuickViewsSummaryConfig(),
+      customization: this.getCustomizationSummaryConfig(),
+    });
   }
 
   handleTimeframeChange(newTimeframe) {
@@ -469,6 +566,100 @@ class AnalysisComponent {
       this.state.tripSearchTerm,
       this.state.typeSearchTerm,
     );
+    this.filtersComponent.updateDisclosure(this.getFiltersSummaryConfig());
+  }
+
+  getScopeSummaryConfig() {
+    const items = [
+      { label: TIMEFRAME_LABELS[this.state.timeframe] || "Custom" },
+      { label: STATUS_LABELS[this.state.tripStatusFilter] || "All Trips" },
+    ];
+
+    if (
+      this.state.timeframe === "custom" &&
+      this.state.startDate &&
+      this.state.endDate
+    ) {
+      items.push({
+        label: `${formatSummaryDate(this.state.startDate)} to ${formatSummaryDate(this.state.endDate)}`,
+        tone: "muted",
+      });
+    }
+
+    return {
+      items,
+      emptyText: "All available data",
+    };
+  }
+
+  getQuickViewsSummaryConfig() {
+    return {
+      text: "4 preset reports",
+    };
+  }
+
+  getCustomizationSummaryConfig() {
+    const items = [
+      { label: METRIC_LABELS[this.state.metric] || "Metric" },
+      { label: CHART_TYPE_LABELS[this.state.chartType] || "Chart" },
+      {
+        label: `By ${GROUP_LABELS[this.state.primaryGroup] || "Date"}`,
+        tone: "muted",
+      },
+    ];
+
+    if (this.state.secondaryGroup !== "none") {
+      items.push({
+        label: `Stack ${GROUP_LABELS[this.state.secondaryGroup] || "Group"}`,
+        tone: "muted",
+      });
+    }
+
+    if (this.state.primaryGroup === "date") {
+      items.push({
+        label: TIME_UNIT_LABELS[this.state.timeUnit] || "Daily",
+        tone: "muted",
+      });
+    }
+
+    return {
+      items,
+      emptyText: "Default chart settings",
+    };
+  }
+
+  getFiltersSummaryConfig() {
+    const items = [];
+
+    if (this.state.selectedTrips.size > 0) {
+      items.push({
+        label: `${this.state.selectedTrips.size} trip${this.state.selectedTrips.size === 1 ? "" : "s"}`,
+      });
+    }
+
+    if (this.state.selectedCategories.size > 0) {
+      items.push({
+        label: `${this.state.selectedCategories.size} categor${this.state.selectedCategories.size === 1 ? "y" : "ies"}`,
+      });
+    }
+
+    const activeSearchCount = [
+      this.state.categorySearchTerm,
+      this.state.tripSearchTerm,
+      this.state.typeSearchTerm,
+    ].filter((term) => term && term.trim().length > 0).length;
+
+    if (activeSearchCount > 0) {
+      items.push({
+        label: `${activeSearchCount} search${activeSearchCount === 1 ? "" : "es"}`,
+        tone: "muted",
+      });
+    }
+
+    return {
+      items,
+      emptyText: "No tag filters active",
+    };
   }
 
   updateStatsDOM(hasBalanceError = false) {
@@ -651,6 +842,14 @@ class AnalysisComponent {
       element.removeEventListener(type, handler);
     });
     this.eventListeners = [];
+    if (this.controlsComponent) {
+      this.controlsComponent.destroy();
+      this.controlsComponent = null;
+    }
+    if (this.filtersComponent) {
+      this.filtersComponent.destroy();
+      this.filtersComponent = null;
+    }
     if (this.chartComponent) {
       this.chartComponent.destroy();
     }

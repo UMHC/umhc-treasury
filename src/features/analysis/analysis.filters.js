@@ -1,19 +1,22 @@
 import { el, replace } from "../../core/dom.js";
 import { sanitizeForId } from "../../core/utils.js";
 import { withSearchInputAttributes } from "../../shared/search-input.js";
+import MobileDisclosureComponent from "../../shared/mobile-disclosure.component.js";
 
 export default class AnalysisFilters {
-  constructor(element, callbacks) {
+  constructor(element, callbacks, options = {}) {
     this.element = element;
     this.callbacks = callbacks || {}; // { onFilterChange, onSearchChange, onTypeChange }
+    this.options = options || {};
+    this.disclosure = null;
     this.render();
     this.bindEvents();
   }
 
   render() {
-    replace(
-      this.element,
-      el("div", { className: "section-header" }, "Filter Specific Tags"),
+    const filtersBody = el(
+      "div",
+      { className: "analysis-filter-section" },
       el(
         "div",
         { className: "tag-filters-container" },
@@ -91,6 +94,28 @@ export default class AnalysisFilters {
         ),
       ),
     );
+
+    const disclosureMount = el("div", {
+      className: "analysis-disclosure-mount analysis-disclosure-mount--filters",
+    });
+
+    replace(this.element, disclosureMount);
+
+    this.disclosure = new MobileDisclosureComponent(disclosureMount, {
+      title: "Filters",
+      summary: this.options.summary || {},
+      expanded: this.options.expanded,
+      collapseMode: "mobile",
+      className: "analysis-disclosure analysis-disclosure--filters",
+      bodyClassName:
+        "analysis-disclosure__body analysis-disclosure__body--filters",
+      bodyChildren: [filtersBody],
+      onToggle: (expanded) => {
+        if (typeof this.options.onToggle === "function") {
+          this.options.onToggle(expanded);
+        }
+      },
+    });
   }
 
   bindEvents() {
@@ -300,5 +325,17 @@ export default class AnalysisFilters {
     const previousScrollTop = container.scrollTop;
     replace(container, ...children);
     container.scrollTop = previousScrollTop;
+  }
+
+  updateDisclosure(summaryConfig = {}) {
+    if (!this.disclosure) return;
+    this.disclosure.update({ summary: summaryConfig });
+  }
+
+  destroy() {
+    if (this.disclosure && typeof this.disclosure.destroy === "function") {
+      this.disclosure.destroy();
+    }
+    this.disclosure = null;
   }
 }

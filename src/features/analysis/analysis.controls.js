@@ -1,9 +1,12 @@
 import { el, replace } from "../../core/dom.js";
+import MobileDisclosureComponent from "../../shared/mobile-disclosure.component.js";
 
 export default class AnalysisControls {
-  constructor(element, callbacks) {
+  constructor(element, callbacks, options = {}) {
     this.element = element;
     this.callbacks = callbacks || {};
+    this.options = options || {};
+    this.disclosures = {};
     // callbacks: { onTimeframeChange, onStatusChange, onDateChange, onMetricChange, onChartTypeChange, onGroupChange, onPresetClick, onToggleTable, onDownload }
     this.render();
   }
@@ -13,8 +16,8 @@ export default class AnalysisControls {
       el(
         "option",
         { value: opt.value, selected: opt.value === selectedValue },
-        opt.label
-      )
+        opt.label,
+      ),
     );
   }
 
@@ -31,7 +34,7 @@ export default class AnalysisControls {
         { value: "past_year", label: "Past Year" },
         { value: "all_time", label: "All Time" },
         { value: "custom", label: "Custom" },
-      ])
+      ]),
     );
     timeframeSelect.addEventListener("change", (e) => {
       if (this.callbacks.onTimeframeChange)
@@ -46,7 +49,7 @@ export default class AnalysisControls {
         { value: "Active", label: "Active Only" },
         { value: "Completed", label: "Completed Only" },
         { value: "Investment", label: "Investment Only" },
-      ])
+      ]),
     );
     statusSelect.addEventListener("change", (e) => {
       if (this.callbacks.onStatusChange)
@@ -77,8 +80,7 @@ export default class AnalysisControls {
 
     const scopeSection = el(
       "div",
-      { className: "control-section scope-section" },
-      el("div", { className: "section-header" }, "1. Scope"),
+      { className: "analysis-control-section analysis-control-section--scope" },
       el(
         "div",
         { className: "control-row" },
@@ -86,22 +88,22 @@ export default class AnalysisControls {
           "div",
           { className: "control-group" },
           el("label", { for: "analysis-timeframe-select" }, "Timeframe"),
-          timeframeSelect
+          timeframeSelect,
         ),
         el(
           "div",
           { className: "control-group" },
           el("label", { for: "analysis-trip-status-select" }, "Trip Status"),
-          statusSelect
-        )
+          statusSelect,
+        ),
       ),
       el(
         "div",
         { className: "control-row dates-row", style: { marginTop: "10px" } },
         startDateInput,
         el("span", { style: { color: "#ccc", alignSelf: "center" } }, "to"),
-        endDateInput
-      )
+        endDateInput,
+      ),
     );
 
     // 2. Presets Section
@@ -114,7 +116,7 @@ export default class AnalysisControls {
       const btn = el(
         "button",
         { className: "quick-report-btn", dataset: { preset: p.id } },
-        p.label
+        p.label,
       );
       btn.addEventListener("click", (e) => {
         if (this.callbacks.onPresetClick)
@@ -125,9 +127,11 @@ export default class AnalysisControls {
 
     const presetsSection = el(
       "div",
-      { className: "control-section presets-section" },
-      el("div", { className: "section-header" }, "2. Quick Views"),
-      el("div", { className: "quick-reports-grid" }, ...presetButtons)
+      {
+        className:
+          "analysis-control-section analysis-control-section--quick-views",
+      },
+      el("div", { className: "quick-reports-grid" }, ...presetButtons),
     );
 
     // 3. Customization Section
@@ -139,7 +143,7 @@ export default class AnalysisControls {
         { value: "income", label: "Income" },
         { value: "expense", label: "Expenses" },
         { value: "net", label: "Net Income" },
-      ])
+      ]),
     );
     metricSelect.addEventListener("change", (e) => {
       if (this.callbacks.onMetricChange)
@@ -154,7 +158,7 @@ export default class AnalysisControls {
         { value: "line", label: "Line" },
         { value: "pie", label: "Pie" },
         { value: "doughnut", label: "Doughnut" },
-      ])
+      ]),
     );
     chartTypeSelect.addEventListener("change", (e) => {
       if (this.callbacks.onChartTypeChange)
@@ -168,7 +172,7 @@ export default class AnalysisControls {
         { value: "date", label: "Date" },
         { value: "category", label: "Category" },
         { value: "trip", label: "Trip/Event" },
-      ])
+      ]),
     );
     primaryGroupSelect.addEventListener("change", (e) => {
       if (this.callbacks.onGroupChange)
@@ -182,7 +186,7 @@ export default class AnalysisControls {
         { value: "none", label: "None" },
         { value: "category", label: "Category" },
         { value: "trip", label: "Trip/Event" },
-      ])
+      ]),
     );
     secondaryGroupSelect.addEventListener("change", (e) => {
       if (this.callbacks.onGroupChange)
@@ -197,7 +201,7 @@ export default class AnalysisControls {
         { value: "week", label: "Weekly" },
         { value: "month", label: "Monthly" },
         { value: "year", label: "Yearly" },
-      ])
+      ]),
     );
     timeUnitSelect.addEventListener("change", (e) => {
       if (this.callbacks.onGroupChange)
@@ -206,8 +210,10 @@ export default class AnalysisControls {
 
     const customizationSection = el(
       "div",
-      { className: "control-section customization-section" },
-      el("div", { className: "section-header" }, "3. Customization"),
+      {
+        className:
+          "analysis-control-section analysis-control-section--customization",
+      },
       el(
         "div",
         { className: "control-grid" },
@@ -215,19 +221,19 @@ export default class AnalysisControls {
           "div",
           { className: "control-group" },
           el("label", { for: "analysis-metric-select" }, "Metric"),
-          metricSelect
+          metricSelect,
         ),
         el(
           "div",
           { className: "control-group" },
           el("label", { for: "analysis-chart-type-select" }, "Chart Type"),
-          chartTypeSelect
+          chartTypeSelect,
         ),
         el(
           "div",
           { className: "control-group" },
           el("label", { for: "analysis-primary-group-select" }, "X-Axis Group"),
-          primaryGroupSelect
+          primaryGroupSelect,
         ),
         el(
           "div",
@@ -235,9 +241,9 @@ export default class AnalysisControls {
           el(
             "label",
             { for: "analysis-secondary-group-select" },
-            "Sub-Group (Stack)"
+            "Sub-Group (Stack)",
           ),
-          secondaryGroupSelect
+          secondaryGroupSelect,
         ),
         el(
           "div",
@@ -247,12 +253,78 @@ export default class AnalysisControls {
             style: { display: "none" },
           },
           el("label", { for: "analysis-time-unit-select" }, "Time Unit"),
-          timeUnitSelect
-        )
-      )
+          timeUnitSelect,
+        ),
+      ),
     );
 
-    replace(this.element, scopeSection, presetsSection, customizationSection);
+    const scopeMount = el("div", {
+      className: "analysis-disclosure-mount analysis-disclosure-mount--scope",
+    });
+    const quickViewsMount = el("div", {
+      className:
+        "analysis-disclosure-mount analysis-disclosure-mount--quick-views",
+    });
+    const customizationMount = el("div", {
+      className:
+        "analysis-disclosure-mount analysis-disclosure-mount--customization",
+    });
+
+    replace(this.element, scopeMount, quickViewsMount, customizationMount);
+
+    this.disclosures.scope = new MobileDisclosureComponent(scopeMount, {
+      title: "Scope",
+      summary: this.options.scopeSummary || {},
+      expanded: this.options.scopeExpanded,
+      collapseMode: "mobile",
+      className: "analysis-disclosure analysis-disclosure--scope",
+      bodyClassName:
+        "analysis-disclosure__body analysis-disclosure__body--scope",
+      bodyChildren: [scopeSection],
+      onToggle: (expanded) => {
+        if (typeof this.options.onScopeToggle === "function") {
+          this.options.onScopeToggle(expanded);
+        }
+      },
+    });
+
+    this.disclosures.quickViews = new MobileDisclosureComponent(
+      quickViewsMount,
+      {
+        title: "Quick Views",
+        summary: this.options.quickViewsSummary || {},
+        expanded: this.options.quickViewsExpanded,
+        collapseMode: "mobile",
+        className: "analysis-disclosure analysis-disclosure--quick-views",
+        bodyClassName:
+          "analysis-disclosure__body analysis-disclosure__body--quick-views",
+        bodyChildren: [presetsSection],
+        onToggle: (expanded) => {
+          if (typeof this.options.onQuickViewsToggle === "function") {
+            this.options.onQuickViewsToggle(expanded);
+          }
+        },
+      },
+    );
+
+    this.disclosures.customization = new MobileDisclosureComponent(
+      customizationMount,
+      {
+        title: "Customization",
+        summary: this.options.customizationSummary || {},
+        expanded: this.options.customizationExpanded,
+        collapseMode: "mobile",
+        className: "analysis-disclosure analysis-disclosure--customization",
+        bodyClassName:
+          "analysis-disclosure__body analysis-disclosure__body--customization",
+        bodyChildren: [customizationSection],
+        onToggle: (expanded) => {
+          if (typeof this.options.onCustomizationToggle === "function") {
+            this.options.onCustomizationToggle(expanded);
+          }
+        },
+      },
+    );
   }
 
   update(state) {
@@ -269,7 +341,7 @@ export default class AnalysisControls {
 
     // Update Chart Type Options based on Metric
     const chartTypeSelect = this.element.querySelector(
-      "#analysis-chart-type-select"
+      "#analysis-chart-type-select",
     );
     let stateAdjustment = null;
     if (chartTypeSelect) {
@@ -307,7 +379,7 @@ export default class AnalysisControls {
     setVal("#analysis-time-unit-select", state.timeUnit);
 
     const timeUnitContainer = this.element.querySelector(
-      "#time-unit-container"
+      "#time-unit-container",
     );
     if (timeUnitContainer) {
       timeUnitContainer.style.display =
@@ -315,5 +387,28 @@ export default class AnalysisControls {
     }
 
     return stateAdjustment;
+  }
+
+  updateDisclosureSummaries(summaries = {}) {
+    if (summaries.scope && this.disclosures.scope) {
+      this.disclosures.scope.update({ summary: summaries.scope });
+    }
+    if (summaries.quickViews && this.disclosures.quickViews) {
+      this.disclosures.quickViews.update({ summary: summaries.quickViews });
+    }
+    if (summaries.customization && this.disclosures.customization) {
+      this.disclosures.customization.update({
+        summary: summaries.customization,
+      });
+    }
+  }
+
+  destroy() {
+    Object.values(this.disclosures).forEach((disclosure) => {
+      if (disclosure && typeof disclosure.destroy === "function") {
+        disclosure.destroy();
+      }
+    });
+    this.disclosures = {};
   }
 }
