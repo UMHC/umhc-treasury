@@ -145,10 +145,83 @@ Desktop-safe guardrails:
 - If a feature needs desktop CSS adjustments to support mobile, stop and isolate why before proceeding.
 - Prefer duplication of small presentation wrappers over risky cross-screen rewrites.
 
+Step 8: Stabilize phone layout width during initial load and refresh
+Status: Pending
+
+Files:
+- src/App.js
+- src/App.css
+- any shared layout or viewport sizing helpers involved in mobile shell measurement
+
+Work:
+- Remove the temporary narrow-state flash that appears on phones during load or refresh.
+- Ensure the app shell keeps a stable mobile width from first paint through hydration/render completion.
+- Audit any phone-only width calculations, delayed class application, or conditional render branches that can momentarily collapse the layout.
+
+Desktop-safe guardrails:
+- Do not introduce fixed widths that break responsive behavior on desktop or tablet.
+- Prefer correcting initial mobile render state over adding post-render width patches.
+- Any shell change must preserve current desktop navigation and header structure.
+
+Step 9: Add phone-native rendering for dense table screens
+Status: Pending
+
+Files:
+- src/features/transactions/transactions.component.js
+- src/features/transactions/transactions.css
+- src/features/tags/tags.list.js
+- src/features/tags/tags.css
+- other table-style feature views that still rely on desktop table layout on phones
+
+Work:
+- Replace desktop table presentation on phones with a line-by-line list, stacked row, or card layout that fits narrow screens.
+- Prioritize transactions, tags, and any similar dense row-based screens that are still too narrow in phone mode.
+- Keep the same actions, data fields, and callbacks while changing only the presentation layer for narrow screens.
+- Reuse a shared mobile row pattern where possible so multiple sections do not invent incompatible phone layouts.
+
+Desktop-safe guardrails:
+- Desktop keeps the current table rendering unchanged.
+- Mobile row/card views must consume the same state and trigger the same edit, save, filter, and navigation flows.
+- Do not move business logic into the rendering layer just to support alternate mobile markup.
+
+Step 10: Keep view-only tag naming consistent inside the section
+Status: Pending
+
+Files:
+- src/features/tags/tags.* as needed
+- any shared header/title wiring used by the tags section
+
+Work:
+- When view-only mode renames "Manage Tags" to "Tags", apply that same label inside the section header and any local title surface within the tags screen.
+- Verify the title stays consistent when entering the section directly, switching subsections, or re-rendering after state changes.
+
+Desktop-safe guardrails:
+- Only change copy tied to view-only behavior.
+- Do not alter permissions logic, routing, or edit capability checks.
+
+Step 11: Align tags timeframe control styling with the green theme
+Status: Pending
+
+Files:
+- src/features/tags/tags.css
+- related shared select/input styles if the timeframe control inherits from them
+
+Work:
+- Change the tags timeframe dropdown from a white background to the correct green themed styling.
+- Verify hover, focus, disabled, and selected states remain readable and accessible.
+
+Desktop-safe guardrails:
+- Scope the color change so it affects the intended tags timeframe control without unintentionally repainting unrelated selects.
+- Preserve contrast and legibility in both editable and view-only states.
+
 Acceptance Criteria
 - Desktop at existing breakpoints is visually unchanged or negligibly changed.
 - Phone screens are shorter, with fewer always-open controls.
 - Primary actions remain visible and secondary controls are progressively disclosed.
+- Phone layout width remains stable during refresh and initial load.
+- Dense table-driven views have a readable phone-native presentation instead of relying on desktop tables.
+- View-only tag naming is consistent in navigation and in-section headers.
+- The tags timeframe control matches the established green theme.
 - The architecture stays intact: action -> service -> state -> UI update.
 
 Recommended Execution Order
@@ -159,3 +232,7 @@ Recommended Execution Order
 5. Tags
 6. Shell polish
 7. Dashboard cleanup if still needed
+8. Refresh width stabilization
+9. Phone-native row/card views for dense tables
+10. View-only tags naming consistency
+11. Tags timeframe theme polish
