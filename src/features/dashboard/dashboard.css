@@ -122,6 +122,25 @@
   opacity: 0.3;
 }
 
+.dashboard-transactions-mobile-list {
+  display: grid;
+  gap: 10px;
+}
+
+.dashboard-transaction-card .mobile-data-card__metrics {
+  grid-template-columns: 1fr;
+}
+
+.dashboard-transaction-card .mobile-data-card__detail-value {
+  display: inline-flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.dashboard-transactions-empty {
+  margin-top: 2px;
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
   .stats-container {

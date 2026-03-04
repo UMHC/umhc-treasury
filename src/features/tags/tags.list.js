@@ -2,6 +2,13 @@ import { formatCurrency } from "../../core/utils.js";
 import ModalComponent from "../../shared/modal.component.js";
 import SortableTable from "../../shared/sortable-table.component.js";
 import TagSelector from "../../shared/tag-selector.component.js";
+import {
+  createMobileDataCard,
+  createMobileDataDetail,
+  createMobileDataEmptyState,
+  createMobileDataList,
+  createMobileDataMetric,
+} from "../../shared/mobile-data-card.component.js";
 import { withSearchInputAttributes } from "../../shared/search-input.js";
 import { el, replace } from "../../core/dom.js";
 
@@ -799,22 +806,20 @@ export default class TagsList {
     if (data.length === 0) {
       replace(
         container,
-        el(
-          "div",
-          { className: "tags-mobile-empty-state" },
-          "No matching tags found.",
-        ),
+        createMobileDataEmptyState({
+          className: "tags-mobile-empty-state",
+          text: "No matching tags found.",
+        }),
       );
       return;
     }
 
     replace(
       container,
-      el(
-        "div",
-        { className: "tags-mobile-card-list" },
-        ...data.map((item) => this.createMobileCard(type, item)),
-      ),
+      createMobileDataList({
+        className: "tags-mobile-card-list",
+        children: data.map((item) => this.createMobileCard(type, item)),
+      }),
     );
   }
 
@@ -823,102 +828,67 @@ export default class TagsList {
     const canOpenDetails =
       !this.isEditMode && typeof this.callbacks.onTagClick === "function";
 
-    const card = el(
-      "article",
-      {
-        className: `tag-mobile-card ${canOpenDetails ? "tag-mobile-card--interactive" : ""}`,
-        tabindex: canOpenDetails ? "0" : null,
-        role: canOpenDetails ? "button" : null,
-      },
-      el(
-        "div",
-        { className: "tag-mobile-card__header" },
-        el(
-          "div",
-          { className: "tag-mobile-card__title-group" },
-          el(
-            "div",
-            { className: "tag-mobile-card__eyebrow" },
-            type === "Type" ? "Trip Type" : type,
+    const details = [];
+
+    if (type === "Trip/Event") {
+      details.push(
+        createMobileDataDetail({
+          label: "Status",
+          value: el(
+            "span",
+            {
+              className: "status-toggle-btn",
+              style: {
+                color:
+                  {
+                    Active: "#888",
+                    Completed: "#5cb85c",
+                    Investment: "#5bc0de",
+                  }[status] || "#888",
+                fontWeight: "bold",
+                fontSize: "1.2em",
+                cursor:
+                  this.canEdit && !this.isEditMode ? "pointer" : "default",
+              },
+              title:
+                this.canEdit && !this.isEditMode
+                  ? `${status} - Click to cycle`
+                  : status,
+              dataset: { tag: item.tag, status: status },
+              tabindex: this.canEdit && !this.isEditMode ? "0" : "-1",
+              role: "button",
+            },
+            { Active: "◯", Completed: "✅", Investment: "🚀" }[status] || "◯",
           ),
-          el("div", { className: "tag-mobile-card__title" }, item.tag),
-        ),
-        el(
-          "div",
-          { className: "tag-mobile-card__count" },
-          `${item.count} use${item.count === 1 ? "" : "s"}`,
-        ),
-      ),
-      type === "Trip/Event"
-        ? el(
-            "div",
-            { className: "tag-mobile-card__meta" },
-            el(
-              "div",
-              { className: "tag-mobile-card__meta-group" },
-              el(
-                "span",
-                { className: "tag-mobile-card__meta-label" },
-                "Status",
-              ),
-              el(
-                "span",
-                {
-                  className: "status-toggle-btn",
-                  style: {
-                    color:
-                      {
-                        Active: "#888",
-                        Completed: "#5cb85c",
-                        Investment: "#5bc0de",
-                      }[status] || "#888",
-                    fontWeight: "bold",
-                    fontSize: "1.2em",
-                    cursor:
-                      this.canEdit && !this.isEditMode ? "pointer" : "default",
-                  },
-                  title:
-                    this.canEdit && !this.isEditMode
-                      ? `${status} - Click to cycle`
-                      : status,
-                  dataset: { tag: item.tag, status: status },
-                  tabindex: this.canEdit && !this.isEditMode ? "0" : "-1",
-                  role: "button",
-                },
-                { Active: "◯", Completed: "✅", Investment: "🚀" }[status] ||
-                  "◯",
-              ),
-            ),
-            el(
-              "div",
-              { className: "tag-mobile-card__meta-group" },
-              el("span", { className: "tag-mobile-card__meta-label" }, "Type"),
-              this.createTripTypeControl(item),
-            ),
-          )
-        : null,
-      el(
-        "div",
-        { className: "tag-mobile-card__metrics" },
-        this.createMetricCard(
-          "Income",
-          formatCurrency(item.income),
-          "positive",
-        ),
-        this.createMetricCard(
-          "Expense",
-          formatCurrency(item.expense),
-          "negative",
-        ),
-        this.createMetricCard("Net", formatCurrency(Math.abs(item.net)), {
-          positive: item.net > 0,
-          negative: item.net < 0,
         }),
-      ),
+        createMobileDataDetail({
+          label: "Type",
+          value: this.createTripTypeControl(item),
+        }),
+      );
+    }
+
+    const metrics = [
+      createMobileDataMetric({
+        label: "Income",
+        value: formatCurrency(item.income),
+        tone: "positive",
+      }),
+      createMobileDataMetric({
+        label: "Expense",
+        value: formatCurrency(item.expense),
+        tone: "negative",
+      }),
+      createMobileDataMetric({
+        label: "Net",
+        value: formatCurrency(Math.abs(item.net)),
+        tone: item.net > 0 ? "positive" : item.net < 0 ? "negative" : "",
+      }),
+    ];
+
+    const actions =
       this.isEditMode && this.canEdit
-        ? el(
-            "div",
-            { className: "tag-mobile-card__actions" },
+        ? [
             el(
               "button",
               {
@@ -945,9 +915,25 @@ export default class TagsList {
               },
               "Delete",
             ),
-          )
-        : null,
-    );
+          ]
+        : [];
+
+    const card = createMobileDataCard({
+      className: "tag-mobile-card",
+      interactive: canOpenDetails,
+      eyebrow: type === "Type" ? "Trip Type" : type,
+      title: item.tag,
+      headerAside: el(
+        "div",
+        {
+          className: "mobile-data-card__badge tag-mobile-card__count",
+        },
+        `${item.count} use${item.count === 1 ? "" : "s"}`,
+      ),
+      details,
+      metrics,
+      actions,
+    });
 
     if (canOpenDetails) {
       const openDetails = (event) => {
@@ -1052,31 +1038,6 @@ export default class TagsList {
       "+ Add Type",
     );
   }
-
-  createMetricCard(label, value, tone) {
-    const toneClass =
-      typeof tone === "string"
-        ? tone
-        : tone?.positive
-          ? "positive"
-          : tone?.negative
-            ? "negative"
-            : "";
-
-    return el(
-      "div",
-      { className: "tag-mobile-card__metric" },
-      el("div", { className: "tag-mobile-card__metric-label" }, label),
-      el(
-        "div",
-        {
-          className: `tag-mobile-card__metric-value ${toneClass}`.trim(),
-        },
-        value,
-      ),
-    );
-  }
-
   handleInteractiveClick(e) {
     const target = e.target;
 

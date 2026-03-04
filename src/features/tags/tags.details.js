@@ -1,7 +1,14 @@
 import store from "../../core/state.js";
-import { formatCurrency } from "../../core/utils.js";
+import { formatCurrency, parseAmount, parseDate } from "../../core/utils.js";
 import SortableTable from "../../shared/sortable-table.component.js";
 import { calculateDetailStats } from "./tags.logic.js";
+import {
+  createMobileDataCard,
+  createMobileDataDetail,
+  createMobileDataEmptyState,
+  createMobileDataList,
+  createMobileDataMetric,
+} from "../../shared/mobile-data-card.component.js";
 import { el, replace } from "../../core/dom.js";
 
 export default class TagsDetails {
@@ -12,11 +19,55 @@ export default class TagsDetails {
     this.tagType = null;
     this.tagName = null;
     this.transactionsData = [];
+    this.mobileMediaQuery = window.matchMedia("(max-width: 768px)");
+    this.isMobile = this.mobileMediaQuery.matches;
+    this.tableSortField = "Date";
+    this.tableSortAsc = false;
+    this.table = null;
+    this.canEdit = true;
+
+    this.viewportChangeHandler = () => {
+      const nextIsMobile = this.mobileMediaQuery.matches;
+      if (nextIsMobile === this.isMobile) return;
+      this.isMobile = nextIsMobile;
+      if (this.tagType && this.tagName) {
+        this.renderCurrentView();
+      }
+    };
+
+    if (typeof this.mobileMediaQuery.addEventListener === "function") {
+      this.mobileMediaQuery.addEventListener(
+        "change",
+        this.viewportChangeHandler,
+      );
+    } else if (typeof this.mobileMediaQuery.addListener === "function") {
+      this.mobileMediaQuery.addListener(this.viewportChangeHandler);
+    }
+  }
+
+  destroy() {
+    if (this.table && typeof this.table.destroy === "function") {
+      this.table.destroy();
+      this.table = null;
+    }
+    if (typeof this.mobileMediaQuery.removeEventListener === "function") {
+      this.mobileMediaQuery.removeEventListener(
+        "change",
+        this.viewportChangeHandler,
+      );
+    } else if (typeof this.mobileMediaQuery.removeListener === "function") {
+      this.mobileMediaQuery.removeListener(this.viewportChangeHandler);
+    }
+  }
+
+  getTransactionNet(item) {
+    return parseAmount(item.Income) - parseAmount(item.Expense);
   }
 
   render(tagType, tagName, canEdit = true) {
     this.tagType = tagType;
     this.tagName = tagName;
+    this.canEdit = canEdit;
 
     const allExpenses = store.getState("expenses") || [];
 
@@ -179,6 +230,10 @@ export default class TagsDetails {
     const tableContainer = el("div", {
       id: "tag-transactions-table-container",
     });
+    const mobileContainer = el("div", {
+      id: "tag-transactions-mobile-container",
+      className: "tags-detail-mobile-list",
+    });
 
     const section = el(
       "div",
@@ -186,12 +241,42 @@ export default class TagsDetails {
       header,
       summary,
       tableContainer,
+      mobileContainer,
     );
 
     replace(this.element, section);
+    this.renderCurrentView();
+  }
+
+  renderCurrentView() {
+    const tableContainer = this.element.querySelector(
+      "#tag-transactions-table-container",
+    );
+    const mobileContainer = this.element.querySelector(
+      "#tag-transactions-mobile-container",
+    );
+    if (!tableContainer || !mobileContainer) return;
+
+    if (this.table && typeof this.table.destroy === "function") {
+      this.tableSortField = this.table.sortField || this.tableSortField;
+      this.tableSortAsc =
+        this.table.sortAsc !== undefined
+          ? this.table.sortAsc
+          : this.tableSortAsc;
+      this.table.destroy();
+      this.table = null;
+    }
+
+    if (this.isMobile) {
+      replace(tableContainer);
+      this.renderMobileCards(mobileContainer);
+      return;
+    }
+
+    replace(mobileContainer);
 
     // Render Table
-    const table = new SortableTable(tableContainer, {
+    this.table = new SortableTable(tableContainer, {
       columns: [
         { key: "Date", label: "Date", type: "date" },
         { key: "Description", label: "Description", type: "text" },
@@ -201,29 +286,9 @@ export default class TagsDetails {
           key: "Amount",
           label: "Amount",
           type: "custom",
-          sortValue: (item) => {
-            const income = item.Income
-              ? parseFloat(String(item.Income).replace(/,/g, ""))
-              : 0;
-            const expense = item.Expense
-              ? parseFloat(String(item.Expense).replace(/,/g, ""))
-              : 0;
-            const safeIncome = isNaN(income) ? 0 : income;
-            const safeExpense = isNaN(expense) ? 0 : expense;
-            return safeIncome - safeExpense;
-          },
+          sortValue: (item) => this.getTransactionNet(item),
           render: (item) => {
-            const income = item.Income
-              ? parseFloat(String(item.Income).replace(/,/g, ""))
-              : 0;
-            const expense = item.Expense
-              ? parseFloat(String(item.Expense).replace(/,/g, ""))
-              : 0;
-
-            const safeIncome = isNaN(income) ? 0 : income;
-            const safeExpense = isNaN(expense) ? 0 : expense;
-
-            const net = safeIncome - safeExpense;
+            const net = this.getTransactionNet(item);
 
             const classType = net > 0 ? "positive" : net < 0 ? "negative" : "";
             const span = el("span", {}, formatCurrency(Math.abs(net)));
@@ -232,9 +297,100 @@ export default class TagsDetails {
           },
         },
       ],
-      initialSortField: "Date",
-      initialSortAsc: false,
+      initialSortField: this.tableSortField,
+      initialSortAsc: this.tableSortAsc,
     });
-    table.update(this.transactionsData);
+    this.table.update(this.transactionsData);
+  }
+
+  getSortedTransactions() {
+    const field = this.tableSortField || "Date";
+    const ascending = this.tableSortAsc;
+
+    return [...this.transactionsData].sort((a, b) => {
+      let valueA;
+      let valueB;
+
+      if (field === "Amount") {
+        valueA = this.getTransactionNet(a);
+        valueB = this.getTransactionNet(b);
+      } else if (field === "Date") {
+        const dateA = parseDate(a.Date);
+        const dateB = parseDate(b.Date);
+        valueA = !dateA || isNaN(dateA.getTime()) ? Infinity : dateA.getTime();
+        valueB = !dateB || isNaN(dateB.getTime()) ? Infinity : dateB.getTime();
+      } else {
+        valueA = String(a[field] || "").toLowerCase();
+        valueB = String(b[field] || "").toLowerCase();
+      }
+
+      if (valueA < valueB) return ascending ? -1 : 1;
+      if (valueA > valueB) return ascending ? 1 : -1;
+      return 0;
+    });
+  }
+
+  renderMobileCards(container) {
+    const data = this.getSortedTransactions();
+
+    if (data.length === 0) {
+      replace(
+        container,
+        createMobileDataEmptyState({
+          className: "tags-detail-mobile-empty",
+          text: "No transactions found for this tag.",
+        }),
+      );
+      return;
+    }
+
+    replace(
+      container,
+      createMobileDataList({
+        className: "tags-detail-mobile-card-list",
+        children: data.map((item) => this.createTransactionMobileCard(item)),
+      }),
+    );
+  }
+
+  createTransactionMobileCard(item) {
+    const net = this.getTransactionNet(item);
+
+    return createMobileDataCard({
+      className: "tags-detail-mobile-card tags-detail-mobile-card--transaction",
+      eyebrow: this.tagType,
+      title: item.Description || "Transaction",
+      headerAside: item["Split Group ID"]
+        ? el(
+            "div",
+            {
+              className:
+                "mobile-data-card__badge tags-detail-mobile-card__split-badge",
+            },
+            "Split",
+          )
+        : null,
+      details: [
+        createMobileDataDetail({
+          label: "Date",
+          value: item.Date || "",
+        }),
+        createMobileDataDetail({
+          label: "Trip/Event",
+          value: item["Trip/Event"] || "None",
+        }),
+        createMobileDataDetail({
+          label: "Category",
+          value: item.Category || "None",
+        }),
+      ],
+      metrics: [
+        createMobileDataMetric({
+          label: "Amount",
+          value: formatCurrency(Math.abs(net)),
+          tone: net > 0 ? "positive" : net < 0 ? "negative" : "",
+        }),
+      ],
+    });
   }
 }

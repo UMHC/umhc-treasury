@@ -12,9 +12,16 @@ import TransactionsSplitHistory from "./transactions.split-history.js";
 import * as TransactionsLogic from "./transactions.logic.js";
 import TagSelector from "../../shared/tag-selector.component.js";
 import MobileDisclosureComponent from "../../shared/mobile-disclosure.component.js";
+import {
+  createMobileDataCard,
+  createMobileDataDetail,
+  createMobileDataEmptyState,
+  createMobileDataList,
+  createMobileDataMetric,
+} from "../../shared/mobile-data-card.component.js";
 import { withSearchInputAttributes } from "../../shared/search-input.js";
 import { el, replace } from "../../core/dom.js";
-import { formatCurrency } from "../../core/utils.js";
+import { formatCurrency, parseAmount } from "../../core/utils.js";
 
 class TransactionsComponent {
   getCanEdit() {
@@ -43,6 +50,10 @@ class TransactionsComponent {
     this.descriptionSearchTerm = "";
     this.filtersExpanded = false;
     this.filtersDisclosure = null;
+    this.mobileMediaQuery = window.matchMedia("(max-width: 768px)");
+    this.isMobile = this.mobileMediaQuery.matches;
+    this.tableSortField = "Date";
+    this.tableSortAsc = false;
 
     this.subscriptions = [];
     this.subscriptions.push(
@@ -87,6 +98,22 @@ class TransactionsComponent {
     const currentExpenses = store.getState("expenses");
     if (currentExpenses) {
       this.handleDataChange(currentExpenses);
+    }
+
+    this.viewportChangeHandler = () => {
+      const nextIsMobile = this.mobileMediaQuery.matches;
+      if (nextIsMobile === this.isMobile) return;
+      this.isMobile = nextIsMobile;
+      this.renderTransactionsDisplay();
+    };
+
+    if (typeof this.mobileMediaQuery.addEventListener === "function") {
+      this.mobileMediaQuery.addEventListener(
+        "change",
+        this.viewportChangeHandler,
+      );
+    } else if (typeof this.mobileMediaQuery.addListener === "function") {
+      this.mobileMediaQuery.addListener(this.viewportChangeHandler);
     }
 
     // Global click listener to close dropdowns
@@ -142,6 +169,14 @@ class TransactionsComponent {
     if (this.filtersDisclosure) {
       this.filtersDisclosure.destroy();
       this.filtersDisclosure = null;
+    }
+    if (typeof this.mobileMediaQuery.removeEventListener === "function") {
+      this.mobileMediaQuery.removeEventListener(
+        "change",
+        this.viewportChangeHandler,
+      );
+    } else if (typeof this.mobileMediaQuery.removeListener === "function") {
+      this.mobileMediaQuery.removeListener(this.viewportChangeHandler);
     }
   }
 
@@ -733,6 +768,10 @@ class TransactionsComponent {
     );
 
     const tableContainer = el("div", { id: "transactions-table-container" });
+    const mobileListContainer = el("div", {
+      id: "transactions-mobile-list-container",
+      className: "transactions-mobile-list",
+    });
 
     const mainContainer = el(
       "div",
@@ -746,6 +785,7 @@ class TransactionsComponent {
       this.canEdit ? bulkToolbar : null,
       descSearchContainer,
       tableContainer,
+      mobileListContainer,
     );
 
     replace(this.transactionsDisplay, mainContainer);
@@ -853,89 +893,354 @@ class TransactionsComponent {
     }
   }
 
+  isRowSelected(rowId) {
+    return this.selectedRows.has(String(rowId));
+  }
+
+  getTransactionNet(item) {
+    return parseAmount(item.Income) - parseAmount(item.Expense);
+  }
+
+  getSortedTransactions(data) {
+    const field = this.tableSortField || "Date";
+    const ascending = this.tableSortAsc;
+
+    if (field === "Amount") {
+      return [...data].sort((a, b) => {
+        const delta = this.getTransactionNet(a) - this.getTransactionNet(b);
+        if (delta < 0) return ascending ? -1 : 1;
+        if (delta > 0) return ascending ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return TransactionsLogic.sortData(data, field, ascending);
+  }
+
+  syncTableSelection() {
+    if (!this.tableComponent) return;
+
+    this.tableComponent.selectedRows = new Set(
+      this.transactionData
+        .filter((item) => this.isRowSelected(item.row))
+        .map((item) => item.row),
+    );
+  }
+
+  reconcileSelectionWithVisibleRows() {
+    if (this.selectedRows.size === 0) return;
+
+    const visibleRowIds = new Set(
+      this.transactionData.map((item) => String(item.row)),
+    );
+    let changed = false;
+
+    Array.from(this.selectedRows).forEach((rowId) => {
+      if (!visibleRowIds.has(String(rowId))) {
+        this.selectedRows.delete(rowId);
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      this.updateSelectionUI();
+    }
+  }
+
+  renderMobileTagCell(item, type) {
+    const value = item[type];
+    const control = this.renderTagCell(item, type);
+
+    if (
+      !value &&
+      (!this.canEdit || this.selectionMode) &&
+      !(control instanceof Element && control.querySelector(".tag-pill"))
+    ) {
+      return el(
+        "span",
+        { className: "transaction-mobile-card__empty-value" },
+        "None",
+      );
+    }
+
+    return control;
+  }
+
+  createMobileSelectionBar() {
+    const allVisibleSelected =
+      this.transactionData.length > 0 &&
+      this.transactionData.every((item) => this.isRowSelected(item.row));
+
+    return el(
+      "div",
+      { className: "transactions-mobile-selection-bar" },
+      el(
+        "div",
+        { className: "transactions-mobile-selection-bar__count" },
+        `${this.selectedRows.size} selected`,
+      ),
+      el(
+        "div",
+        { className: "transactions-mobile-selection-bar__actions" },
+        el(
+          "button",
+          {
+            type: "button",
+            className: "secondary-btn",
+            onclick: () => this.selectAllVisibleRows(),
+            disabled: allVisibleSelected,
+          },
+          "Select All Visible",
+        ),
+        el(
+          "button",
+          {
+            type: "button",
+            className: "secondary-btn",
+            onclick: () => this.clearSelectedRows(),
+            disabled: this.selectedRows.size === 0,
+          },
+          "Clear",
+        ),
+      ),
+    );
+  }
+
+  handleMobileSelectionChange(rowId, checked) {
+    if (checked) {
+      this.selectedRows.add(String(rowId));
+    } else {
+      this.selectedRows.delete(String(rowId));
+    }
+
+    this.updateSelectionUI();
+    this.renderMobileTransactionsList();
+  }
+
+  selectAllVisibleRows() {
+    this.transactionData.forEach((item) => {
+      this.selectedRows.add(String(item.row));
+    });
+    this.updateSelectionUI();
+    this.renderMobileTransactionsList();
+  }
+
+  clearSelectedRows() {
+    this.selectedRows.clear();
+    this.updateSelectionUI();
+    this.renderMobileTransactionsList();
+  }
+
+  isMobileCardControlTarget(target) {
+    return Boolean(
+      target.closest(
+        "button, input, label, .tag-pill, .add-tag-placeholder, .remove-btn",
+      ),
+    );
+  }
+
+  createTransactionMobileCard(item) {
+    const rowId = String(item.row);
+    const net = this.getTransactionNet(item);
+    const tone = net > 0 ? "positive" : net < 0 ? "negative" : "";
+    const isSelected = this.isRowSelected(rowId);
+
+    const headerAside =
+      this.selectionMode && this.canEdit
+        ? el(
+            "label",
+            {
+              className: "transaction-mobile-card__checkbox",
+              "aria-label": `Select transaction ${item.Description || rowId}`,
+            },
+            el("input", {
+              type: "checkbox",
+              checked: isSelected,
+              onchange: (event) =>
+                this.handleMobileSelectionChange(rowId, event.target.checked),
+              onclick: (event) => event.stopPropagation(),
+            }),
+          )
+        : item["Split Group ID"]
+          ? el(
+              "span",
+              {
+                className:
+                  "mobile-data-card__badge transaction-mobile-card__split-badge",
+              },
+              "Split",
+            )
+          : null;
+
+    const details = [
+      createMobileDataDetail({
+        label: "Date",
+        value: item.Date || "",
+      }),
+      createMobileDataDetail({
+        label: "Trip/Event",
+        value: this.renderMobileTagCell(item, "Trip/Event"),
+      }),
+      createMobileDataDetail({
+        label: "Category",
+        value: this.renderMobileTagCell(item, "Category"),
+      }),
+    ];
+
+    if (item["Split Group ID"]) {
+      details.push(
+        createMobileDataDetail({
+          label: "Group",
+          value: item["Split Group ID"],
+          valueClassName:
+            "mobile-data-card__detail-value transaction-mobile-card__split-id",
+        }),
+      );
+    }
+
+    const card = createMobileDataCard({
+      className: `transaction-mobile-card ${
+        isSelected ? "transaction-mobile-card--selected" : ""
+      }`.trim(),
+      interactive: this.selectionMode || this.canEdit,
+      eyebrow: this.selectionMode ? "Select Transaction" : "Transaction",
+      title: item.Description || "Transaction",
+      headerAside,
+      details,
+      metrics: [
+        createMobileDataMetric({
+          label: "Amount",
+          value: formatCurrency(Math.abs(net)),
+          tone,
+          className: "transaction-mobile-card__amount-metric",
+        }),
+      ],
+    });
+
+    const activateCard = (event) => {
+      if (this.isMobileCardControlTarget(event.target)) return;
+
+      if (this.selectionMode) {
+        this.handleMobileSelectionChange(rowId, !isSelected);
+        return;
+      }
+
+      this.handleRowClick(item, event);
+    };
+
+    if (this.selectionMode || this.canEdit) {
+      card.addEventListener("click", activateCard);
+      card.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        activateCard(event);
+      });
+    }
+
+    return card;
+  }
+
+  renderMobileTransactionsList() {
+    const container = this.transactionsDisplay.querySelector(
+      "#transactions-mobile-list-container",
+    );
+    if (!container) return;
+
+    if (!this.isMobile) {
+      replace(container);
+      return;
+    }
+
+    const content = [];
+
+    if (this.selectionMode && this.canEdit) {
+      content.push(this.createMobileSelectionBar());
+    }
+
+    if (this.transactionData.length === 0) {
+      content.push(
+        createMobileDataEmptyState({
+          className: "transactions-mobile-empty-state",
+          text: "No transactions match the current filters.",
+        }),
+      );
+    } else {
+      content.push(
+        createMobileDataList({
+          className: "transactions-mobile-card-list",
+          children: this.getSortedTransactions(this.transactionData).map(
+            (item) => this.createTransactionMobileCard(item),
+          ),
+        }),
+      );
+    }
+
+    replace(container, ...content);
+  }
+
   initializeSubComponents() {
     // Cleanup old table component
     if (
       this.tableComponent &&
       typeof this.tableComponent.destroy === "function"
     ) {
+      this.tableSortField =
+        this.tableComponent.sortField || this.tableSortField;
+      this.tableSortAsc =
+        this.tableComponent.sortAsc !== undefined
+          ? this.tableComponent.sortAsc
+          : this.tableSortAsc;
       this.tableComponent.destroy();
     }
+    this.tableComponent = null;
 
-    // Table
-    this.tableComponent = new SortableTable(
-      this.transactionsDisplay.querySelector("#transactions-table-container"),
-      {
-        columns: [
-          { key: "Date", label: "Date", type: "date" },
-          { key: "Description", label: "Description", type: "text" },
-          {
-            key: "Trip/Event",
-            label: "Trip/Event",
-            type: "custom",
-            render: (item) => this.renderTagCell(item, "Trip/Event"),
-          },
-          {
-            key: "Category",
-            label: "Category",
-            type: "custom",
-            render: (item) => this.renderTagCell(item, "Category"),
-          },
-          {
-            key: "Amount",
-            label: "Amount",
-            type: "custom",
-            sortValue: (item) => {
-              const incomeStr = item.Income
-                ? String(item.Income).replace(/,/g, "")
-                : "";
-              const expenseStr = item.Expense
-                ? String(item.Expense).replace(/,/g, "")
-                : "";
-
-              const income = incomeStr !== "" ? parseFloat(incomeStr) : 0;
-              const expense = expenseStr !== "" ? parseFloat(expenseStr) : 0;
-
-              if (isNaN(income) || isNaN(expense)) {
-                return Infinity;
-              }
-
-              return income - expense;
+    if (!this.isMobile) {
+      this.tableComponent = new SortableTable(
+        this.transactionsDisplay.querySelector("#transactions-table-container"),
+        {
+          columns: [
+            { key: "Date", label: "Date", type: "date" },
+            { key: "Description", label: "Description", type: "text" },
+            {
+              key: "Trip/Event",
+              label: "Trip/Event",
+              type: "custom",
+              render: (item) => this.renderTagCell(item, "Trip/Event"),
             },
-            render: (item) => {
-              const incomeStr = item.Income
-                ? String(item.Income).replace(/,/g, "")
-                : "";
-              const expenseStr = item.Expense
-                ? String(item.Expense).replace(/,/g, "")
-                : "";
-
-              const income = incomeStr !== "" ? parseFloat(incomeStr) : 0;
-              const expense = expenseStr !== "" ? parseFloat(expenseStr) : 0;
-
-              const safeIncome = isNaN(income) ? 0 : income;
-              const safeExpense = isNaN(expense) ? 0 : expense;
-
-              const net = safeIncome - safeExpense;
-              const classType =
-                net > 0 ? "positive" : net < 0 ? "negative" : "";
-
-              const span = document.createElement("span");
-              if (classType) span.className = classType;
-              span.textContent = formatCurrency(Math.abs(net));
-              return span;
+            {
+              key: "Category",
+              label: "Category",
+              type: "custom",
+              render: (item) => this.renderTagCell(item, "Category"),
             },
-          },
-        ],
-        enableSelection: this.selectionMode,
-        rowIdField: "row",
-        initialSortField: "Date",
-        initialSortAsc: false,
-        onSelectionChange: (selectedIds) =>
-          this.handleSelectionChange(selectedIds),
-        onRowClick: (item, e) => this.handleRowClick(item, e),
-      },
-    );
+            {
+              key: "Amount",
+              label: "Amount",
+              type: "custom",
+              sortValue: (item) => this.getTransactionNet(item),
+              render: (item) => {
+                const net = this.getTransactionNet(item);
+                const classType =
+                  net > 0 ? "positive" : net < 0 ? "negative" : "";
+
+                const span = document.createElement("span");
+                if (classType) span.className = classType;
+                span.textContent = formatCurrency(Math.abs(net));
+                return span;
+              },
+            },
+          ],
+          enableSelection: this.selectionMode,
+          rowIdField: "row",
+          initialSortField: this.tableSortField,
+          initialSortAsc: this.tableSortAsc,
+          onSelectionChange: (selectedIds) =>
+            this.handleSelectionChange(selectedIds),
+          onRowClick: (item, e) => this.handleRowClick(item, e),
+        },
+      );
+      this.syncTableSelection();
+    }
 
     // Cleanup old filters component
     if (
@@ -1311,11 +1616,15 @@ class TransactionsComponent {
         descriptionSearch: this.descriptionSearchTerm,
       },
     );
+    this.reconcileSelectionWithVisibleRows();
 
     // 2. Render (SortableTable handles sorting)
     if (this.tableComponent) {
+      this.syncTableSelection();
       this.tableComponent.update(this.transactionData);
     }
+
+    this.renderMobileTransactionsList();
   }
 
   // --- Bulk Actions & Selection ---
@@ -1337,13 +1646,16 @@ class TransactionsComponent {
 
     if (this.tableComponent) {
       this.tableComponent.enableSelection = active;
+      this.syncTableSelection();
       // Re-render to show/hide checkboxes
       this.tableComponent.render();
     }
+
+    this.renderMobileTransactionsList();
   }
 
   handleSelectionChange(selectedIds) {
-    this.selectedRows = new Set(selectedIds);
+    this.selectedRows = new Set(selectedIds.map((id) => String(id)));
     this.updateSelectionUI();
   }
 

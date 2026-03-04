@@ -2,8 +2,16 @@
 import store from "../../core/state.js";
 import SortableTable from "../../shared/sortable-table.component.js";
 import {
+  createMobileDataCard,
+  createMobileDataDetail,
+  createMobileDataEmptyState,
+  createMobileDataList,
+  createMobileDataMetric,
+} from "../../shared/mobile-data-card.component.js";
+import {
   formatCurrency,
   filterTransactionsByTimeframe,
+  parseDate,
   parseAmount,
 } from "../../core/utils.js";
 import { calculateFinancials } from "../../core/financial.logic.js";
@@ -13,22 +21,57 @@ class DashboardComponent {
   constructor(element) {
     this.element = element;
     this.timeframe = "past_30_days"; // Default timeframe
+    this.mobileMediaQuery = window.matchMedia("(max-width: 768px)");
+    this.isMobile = this.mobileMediaQuery.matches;
+    this.tableSortField = "Date";
+    this.tableSortAsc = false;
+    this.filteredTransactions = [];
     this.render();
     this.subscriptions = [];
     this.subscriptions.push(
-      store.subscribe("expenses", () => this.calculateAndDisplayStats())
+      store.subscribe("expenses", () => this.calculateAndDisplayStats()),
     );
     this.subscriptions.push(
-      store.subscribe("openingBalance", () => this.calculateAndDisplayStats())
+      store.subscribe("openingBalance", () => this.calculateAndDisplayStats()),
     );
     this.subscriptions.push(
       store.subscribe("accessibilityMode", () =>
-        this.handleAccessibilityChange()
-      )
+        this.handleAccessibilityChange(),
+      ),
     );
+
+    this.viewportChangeHandler = () => {
+      const nextIsMobile = this.mobileMediaQuery.matches;
+      if (nextIsMobile === this.isMobile) return;
+      this.isMobile = nextIsMobile;
+      this.renderRecentTransactionsView();
+    };
+
+    if (typeof this.mobileMediaQuery.addEventListener === "function") {
+      this.mobileMediaQuery.addEventListener(
+        "change",
+        this.viewportChangeHandler,
+      );
+    } else if (typeof this.mobileMediaQuery.addListener === "function") {
+      this.mobileMediaQuery.addListener(this.viewportChangeHandler);
+    }
   }
 
   destroy() {
+    if (
+      this.transactionsTable &&
+      typeof this.transactionsTable.destroy === "function"
+    ) {
+      this.transactionsTable.destroy();
+    }
+    if (typeof this.mobileMediaQuery.removeEventListener === "function") {
+      this.mobileMediaQuery.removeEventListener(
+        "change",
+        this.viewportChangeHandler,
+      );
+    } else if (typeof this.mobileMediaQuery.removeListener === "function") {
+      this.mobileMediaQuery.removeListener(this.viewportChangeHandler);
+    }
     this.subscriptions.forEach((sub) => sub.unsubscribe());
     this.subscriptions = [];
   }
@@ -51,6 +94,9 @@ class DashboardComponent {
     // Re-render table rows to update symbols, preserving sort state
     if (this.transactionsTable) {
       this.transactionsTable.render();
+    }
+    if (this.isMobile) {
+      this.renderMobileRecentTransactions();
     }
   }
 
@@ -76,8 +122,8 @@ class DashboardComponent {
       "select",
       { id: "dashboard-timeframe-select", "aria-label": "Timeframe" },
       ...options.map((opt) =>
-        el("option", { value: opt.value, selected: opt.selected }, opt.text)
-      )
+        el("option", { value: opt.value, selected: opt.selected }, opt.text),
+      ),
     );
 
     // Attach listener immediately
@@ -90,22 +136,22 @@ class DashboardComponent {
     this.currentBalanceEl = el(
       "p",
       { id: "current-balance", className: "stat-value" },
-      "£0.00"
+      "£0.00",
     );
     this.totalIncomeEl = el(
       "p",
       { id: "total-income", className: "stat-value" },
-      "£0.00"
+      "£0.00",
     );
     this.totalExpensesEl = el(
       "p",
       { id: "total-expenses", className: "stat-value" },
-      "£0.00"
+      "£0.00",
     );
     this.netChangeEl = el(
       "p",
       { id: "net-change", className: "stat-value" },
-      "£0.00"
+      "£0.00",
     );
 
     this.transactionCountSubtitleEl = el("div", {
@@ -125,26 +171,26 @@ class DashboardComponent {
           "div",
           { className: "stat-card" },
           el("h3", {}, "Current Balance"),
-          this.currentBalanceEl
+          this.currentBalanceEl,
         ),
         el(
           "div",
           { className: "stat-card" },
           el("h3", {}, "Total Income"),
-          this.totalIncomeEl
+          this.totalIncomeEl,
         ),
         el(
           "div",
           { className: "stat-card" },
           el("h3", {}, "Total Expenses"),
-          this.totalExpensesEl
+          this.totalExpensesEl,
         ),
         el(
           "div",
           { className: "stat-card" },
           el("h3", {}, "Net Change"),
-          this.netChangeEl
-        )
+          this.netChangeEl,
+        ),
       ),
       el(
         "div",
@@ -153,10 +199,10 @@ class DashboardComponent {
           "div",
           { className: "transactions-header" },
           el("h2", {}, "Recent Transactions"),
-          this.transactionCountSubtitleEl
+          this.transactionCountSubtitleEl,
         ),
-        this.recentTransactionsContentEl
-      )
+        this.recentTransactionsContentEl,
+      ),
     );
 
     const container = el(
@@ -188,63 +234,184 @@ class DashboardComponent {
           },
           `👁️ Colourblind Access: ${
             store.getState("accessibilityMode") ? "On" : "Off"
-          }`
+          }`,
         ),
         el(
           "div",
           { className: "timeframe-selector" },
           el("label", { for: "dashboard-timeframe-select" }, "Timeframe: "),
-          this.timeframeSelect
-        )
+          this.timeframeSelect,
+        ),
       ),
-      this.loadedContent
+      this.loadedContent,
     );
 
     replace(this.element, container);
 
-    // Initialize SortableTable
-    this.transactionsTable = new SortableTable(
-      this.recentTransactionsContentEl,
-      {
-        columns: [
-          { key: "Date", label: "Date", type: "date" },
-          { key: "Description", label: "Description", type: "text" },
-          {
-            key: "Amount",
-            label: "Amount (£)",
-            type: "custom",
-            sortValue: (item) => {
-              const income = parseAmount(item.Income);
-              const expense = parseAmount(item.Expense);
-              return income - expense;
-            },
-            render: (item) => {
-              const net = parseAmount(item.Income) - parseAmount(item.Expense);
-
-              const classType =
-                net > 0 ? "positive" : net < 0 ? "negative" : "";
-              const span = document.createElement("span");
-              if (classType) span.className = classType;
-
-              span.textContent = formatCurrency(Math.abs(net));
-              return span;
-            },
-          },
-        ],
-        initialSortField: "Date",
-        initialSortAsc: false,
-      }
-    );
+    this.initializeTransactionsView();
 
     // Re-calculate stats to populate the new elements
     this.calculateAndDisplayStats();
+  }
+
+  initializeTransactionsView() {
+    if (
+      this.transactionsTable &&
+      typeof this.transactionsTable.destroy === "function"
+    ) {
+      this.tableSortField =
+        this.transactionsTable.sortField || this.tableSortField;
+      this.tableSortAsc =
+        this.transactionsTable.sortAsc !== undefined
+          ? this.transactionsTable.sortAsc
+          : this.tableSortAsc;
+      this.transactionsTable.destroy();
+    }
+
+    this.transactionsTable = null;
+
+    if (!this.isMobile) {
+      this.transactionsTable = new SortableTable(
+        this.recentTransactionsContentEl,
+        {
+          columns: [
+            { key: "Date", label: "Date", type: "date" },
+            { key: "Description", label: "Description", type: "text" },
+            {
+              key: "Amount",
+              label: "Amount (£)",
+              type: "custom",
+              sortValue: (item) => this.getTransactionNet(item),
+              render: (item) => {
+                const net = this.getTransactionNet(item);
+                const classType =
+                  net > 0 ? "positive" : net < 0 ? "negative" : "";
+                const span = document.createElement("span");
+                if (classType) span.className = classType;
+
+                span.textContent = formatCurrency(Math.abs(net));
+                return span;
+              },
+            },
+          ],
+          initialSortField: this.tableSortField,
+          initialSortAsc: this.tableSortAsc,
+        },
+      );
+    }
+  }
+
+  getTransactionNet(item) {
+    return parseAmount(item.Income) - parseAmount(item.Expense);
+  }
+
+  getSortedRecentTransactions() {
+    const field = this.tableSortField || "Date";
+    const ascending = this.tableSortAsc;
+
+    if (field === "Amount") {
+      return [...this.filteredTransactions].sort((a, b) => {
+        const delta = this.getTransactionNet(a) - this.getTransactionNet(b);
+        if (delta < 0) return ascending ? -1 : 1;
+        if (delta > 0) return ascending ? 1 : -1;
+        return 0;
+      });
+    }
+
+    if (this.transactionsTable) {
+      this.transactionsTable.data = [...this.filteredTransactions];
+      this.transactionsTable.sortField = field;
+      this.transactionsTable.sortAsc = ascending;
+      this.transactionsTable.sortData();
+      return [...this.transactionsTable.data];
+    }
+
+    return [...this.filteredTransactions].sort((a, b) => {
+      let valueA;
+      let valueB;
+
+      if (field === "Date") {
+        const dateA = parseDate(a.Date);
+        const dateB = parseDate(b.Date);
+        valueA = !dateA || isNaN(dateA.getTime()) ? Infinity : dateA.getTime();
+        valueB = !dateB || isNaN(dateB.getTime()) ? Infinity : dateB.getTime();
+      } else {
+        valueA = String(a[field] || "").toLowerCase();
+        valueB = String(b[field] || "").toLowerCase();
+      }
+
+      if (valueA < valueB) return ascending ? -1 : 1;
+      if (valueA > valueB) return ascending ? 1 : -1;
+      return 0;
+    });
+  }
+
+  createRecentTransactionCard(item) {
+    const net = this.getTransactionNet(item);
+
+    return createMobileDataCard({
+      className: "dashboard-transaction-card",
+      eyebrow: "Transaction",
+      title: item.Description || "Transaction",
+      details: [
+        createMobileDataDetail({
+          label: "Date",
+          value: item.Date || "",
+        }),
+      ],
+      metrics: [
+        createMobileDataMetric({
+          label: "Amount",
+          value: formatCurrency(Math.abs(net)),
+          tone: net > 0 ? "positive" : net < 0 ? "negative" : "",
+        }),
+      ],
+    });
+  }
+
+  renderMobileRecentTransactions() {
+    if (!this.isMobile) return;
+
+    if (this.filteredTransactions.length === 0) {
+      replace(
+        this.recentTransactionsContentEl,
+        createMobileDataEmptyState({
+          className: "dashboard-transactions-empty",
+          text: "No transactions found for this timeframe.",
+        }),
+      );
+      return;
+    }
+
+    replace(
+      this.recentTransactionsContentEl,
+      createMobileDataList({
+        className: "dashboard-transactions-mobile-list",
+        children: this.getSortedRecentTransactions().map((item) =>
+          this.createRecentTransactionCard(item),
+        ),
+      }),
+    );
+  }
+
+  renderRecentTransactionsView() {
+    this.initializeTransactionsView();
+
+    if (this.isMobile) {
+      this.renderMobileRecentTransactions();
+      return;
+    }
+
+    if (this.transactionsTable) {
+      this.transactionsTable.update(this.filteredTransactions);
+    }
   }
 
   updateTitle() {
     const titleEl = document.getElementById("page-title");
     if (titleEl) {
       titleEl.textContent = `Dashboard - ${this.getTimeframeLabel(
-        this.timeframe
+        this.timeframe,
       )}`;
     }
   }
@@ -288,14 +455,15 @@ class DashboardComponent {
   }
 
   displayRecentTransactions(transactions) {
+    this.filteredTransactions = [...transactions];
     this.updateTransactionCountHeader(transactions.length);
-    this.transactionsTable.update(transactions);
+    this.renderRecentTransactionsView();
   }
 
   updateTransactionCountHeader(count) {
     if (this.transactionCountSubtitleEl) {
       const timeframeLabel = this.getTimeframeLabel(
-        this.timeframe
+        this.timeframe,
       ).toLowerCase();
       const transactionWord = count === 1 ? "transaction" : "transactions";
       this.transactionCountSubtitleEl.textContent = `${count} ${transactionWord} in the ${timeframeLabel}`;

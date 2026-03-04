@@ -148,6 +148,97 @@
   border-color: rgba(255, 255, 255, 0.2);
 }
 
+.transactions-mobile-list {
+  display: none;
+}
+
+.transactions-mobile-selection-bar {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid rgba(240, 173, 78, 0.16);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.transactions-mobile-selection-bar__count {
+  color: #f7d7a0;
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.transactions-mobile-selection-bar__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.transactions-mobile-selection-bar__actions .secondary-btn {
+  width: 100%;
+  min-height: 40px;
+}
+
+.transaction-mobile-card .mobile-data-card__detail-value {
+  display: inline-flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.transaction-mobile-card .mobile-data-card__metrics {
+  grid-template-columns: 1fr;
+}
+
+.transaction-mobile-card__amount-metric {
+  background: rgba(0, 0, 0, 0.24);
+}
+
+.transaction-mobile-card__split-badge {
+  background: rgba(91, 192, 222, 0.16);
+  color: #9fe4f5;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.transaction-mobile-card__split-id {
+  font-family: monospace;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.transaction-mobile-card__checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  min-height: 40px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.transaction-mobile-card__checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #f0ad4e;
+}
+
+.transaction-mobile-card--selected {
+  border-color: rgba(240, 173, 78, 0.48);
+  box-shadow: 0 0 0 1px rgba(240, 173, 78, 0.18);
+}
+
+.transaction-mobile-card__empty-value {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.9rem;
+}
+
+.transactions-mobile-empty-state {
+  margin-top: 2px;
+}
+
 /* Theme Select Dropdown */
 .theme-select {
   padding: 8px 12px;
@@ -404,6 +495,18 @@
   .transactions-description-search__input {
     padding: 8px 10px;
     font-size: 0.9em;
+  }
+
+  #transactions-table-container {
+    display: none;
+  }
+
+  .transactions-mobile-list {
+    display: block;
+  }
+
+  .transactions-mobile-card-list {
+    gap: 10px;
   }
 }
 
