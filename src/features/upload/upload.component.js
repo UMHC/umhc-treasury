@@ -28,6 +28,15 @@ class UploadComponent {
         this.handleUploadingState(store.getState("isUploading")),
       ),
     );
+    this.subscriptions.push(
+      store.subscribe("rawExpenses", () => {
+        if (this.parsedData && this.parsedData.length > 0) {
+          const existingData = store.getState("rawExpenses") || [];
+          this.markDuplicates(this.parsedData, existingData);
+          this.displayExtractedData();
+        }
+      }),
+    );
     this.handleUploadingState(store.getState("isUploading"));
   }
 
