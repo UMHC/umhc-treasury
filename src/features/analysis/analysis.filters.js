@@ -329,7 +329,7 @@ export default class AnalysisFilters {
 
   updateDisclosure(summaryConfig = {}) {
     if (!this.disclosure) return;
-    this.disclosure.update({ summary: summaryConfig });
+    this.disclosure.setSummary(summaryConfig);
   }
 
   destroy() {

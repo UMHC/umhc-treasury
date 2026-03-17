@@ -300,12 +300,7 @@ class AnalysisLogic {
     ];
 
     const getColor = (str, index) => {
-      let hash = 0;
-      for (let i = 0; i < str.length; i++) {
-        hash = str.charCodeAt(i) + ((hash << 5) - hash);
-      }
-      const colorIndex = Math.abs(hash % CHART_COLORS.length);
-      return CHART_COLORS[colorIndex];
+      return CHART_COLORS[index % CHART_COLORS.length];
     };
 
     if (secondaryGroup === "none") {

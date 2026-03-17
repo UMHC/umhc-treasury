@@ -147,34 +147,30 @@ export default class AnalysisChart {
             intersect: false,
             callbacks: {
               label: function (context) {
-                let label = context.dataset.label || "";
-                if (label) {
-                  label += ": ";
-                }
                 const value =
                   context.parsed.y !== undefined
                     ? context.parsed.y
                     : context.parsed;
-                if (value !== null) {
-                  label += formatCurrency(value);
-                }
+                if (value === null || value === 0) return null;
+                let label = context.dataset.label || "";
+                if (label) label += ": ";
+                label += formatCurrency(value);
                 return label;
               },
               footer: function (tooltipItems) {
-                let sum = 0;
-                tooltipItems.forEach(function (tooltipItem) {
+                const nonZeroItems = tooltipItems.filter((item) => {
                   const value =
-                    tooltipItem.parsed.y !== undefined
-                      ? tooltipItem.parsed.y
-                      : tooltipItem.parsed;
-                  if (value !== null && value !== undefined) {
-                    sum += value;
-                  }
+                    item.parsed.y !== undefined ? item.parsed.y : item.parsed;
+                  return value !== null && value !== undefined && value !== 0;
                 });
-                if (tooltipItems.length > 1) {
-                  return "Total: " + formatCurrency(sum);
-                }
-                return "";
+                if (nonZeroItems.length <= 1) return "";
+                const sum = nonZeroItems.reduce((acc, item) => {
+                  return (
+                    acc +
+                    (item.parsed.y !== undefined ? item.parsed.y : item.parsed)
+                  );
+                }, 0);
+                return "Total: " + formatCurrency(sum);
               },
             },
           },
