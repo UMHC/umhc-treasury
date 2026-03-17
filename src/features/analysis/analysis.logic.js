@@ -148,8 +148,51 @@ class AnalysisLogic {
    * @returns {{labels: Array<string>, datasets: Array<Object>}} Data structured for Chart.js.
    */
   aggregateData(data, aggregationState, allExpenses = [], openingBalance = 0) {
-    const { primaryGroup, secondaryGroup, metric, timeUnit, startDate } =
+    const { primaryGroup, secondaryGroup, metric, timeUnit, startDate, endDate } =
       aggregationState;
+
+    const generateAllDateKeys = (start, end, unit) => {
+      const keys = [];
+      const startD = parseDate(start);
+      const endD = parseDate(end);
+      if (!startD || !endD) return keys;
+
+      if (unit === "day") {
+        const cur = new Date(startD.getFullYear(), startD.getMonth(), startD.getDate());
+        while (cur <= endD) {
+          keys.push(formatDateForInput(cur));
+          cur.setDate(cur.getDate() + 1);
+        }
+      } else if (unit === "week") {
+        // Align to Monday of startD's week
+        const day = startD.getDay();
+        const diff = startD.getDate() - day + (day === 0 ? -6 : 1);
+        const cur = new Date(startD.getFullYear(), startD.getMonth(), diff);
+        while (cur <= endD) {
+          keys.push(formatDateForInput(cur));
+          cur.setDate(cur.getDate() + 7);
+        }
+      } else if (unit === "year") {
+        let year = startD.getFullYear();
+        const endYear = endD.getFullYear();
+        while (year <= endYear) {
+          keys.push(year.toString());
+          year++;
+        }
+      } else {
+        // month (default)
+        let year = startD.getFullYear();
+        let month = startD.getMonth();
+        const endYear = endD.getFullYear();
+        const endMonth = endD.getMonth();
+        while (year < endYear || (year === endYear && month <= endMonth)) {
+          keys.push(`${year}-${String(month + 1).padStart(2, "0")}`);
+          month++;
+          if (month > 11) { month = 0; year++; }
+        }
+      }
+      return keys;
+    };
 
     const primaryMap = {};
     const allSecondaryKeys = new Set();
@@ -207,6 +250,18 @@ class AnalysisLogic {
     });
 
     let sortedPKeys = Object.keys(primaryMap).sort();
+    if (primaryGroup === "date" && startDate && endDate) {
+      const allKeys = generateAllDateKeys(startDate, endDate, timeUnit);
+      if (allKeys.length > 0) {
+        const keySet = new Set(sortedPKeys);
+        allKeys.forEach((k) => {
+          if (!keySet.has(k)) {
+            primaryMap[k] = secondaryGroup === "none" ? 0 : {};
+          }
+        });
+        sortedPKeys = allKeys;
+      }
+    }
 
     // Special handling for 'balance' metric, which is cumulative
     if (

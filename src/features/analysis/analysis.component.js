@@ -814,6 +814,7 @@ class AnalysisComponent {
         metric: this.state.metric,
         timeUnit: this.state.timeUnit,
         startDate: this.state.startDate,
+        endDate: this.state.endDate,
       },
       allExpenses,
       openingBalance,
