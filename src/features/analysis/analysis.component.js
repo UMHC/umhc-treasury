@@ -118,6 +118,8 @@ class AnalysisComponent {
       },
       showDataTable: false,
       skipEmptyPeriods: false,
+      colorsLocked: false,
+      lockedColors: null,
     };
 
     this.debouncedGenerateChart = debounce(() => this.generateChart(), 600);
@@ -180,6 +182,15 @@ class AnalysisComponent {
         "button",
         { id: "btn-skip-empty", className: "btn-action" },
         "Skip Empty Periods",
+      ),
+      el(
+        "button",
+        {
+          id: "btn-lock-colors",
+          className: "btn-action",
+          style: { display: "none" },
+        },
+        "Lock Colors",
       ),
       el(
         "button",
@@ -380,6 +391,13 @@ class AnalysisComponent {
       this.eventListeners.push({ element: skipBtn, type: "click", handler });
     }
 
+    const lockBtn = this.element.querySelector("#btn-lock-colors");
+    if (lockBtn) {
+      const handler = () => this.handleLockColors();
+      lockBtn.addEventListener("click", handler);
+      this.eventListeners.push({ element: lockBtn, type: "click", handler });
+    }
+
     const toggleBtn = this.element.querySelector("#btn-toggle-view");
     if (toggleBtn) {
       const handler = () => {
@@ -492,6 +510,17 @@ class AnalysisComponent {
   updateControls() {
     if (!this.controlsComponent) return;
     const tags = store.getState("tags") || {};
+
+    // Auto-unlock before updating controls so selects render with correct disabled state
+    const showLock =
+      this.state.metric !== "balance" &&
+      (this.state.primaryGroup !== "date" ||
+        this.state.secondaryGroup !== "none");
+    if (!showLock && this.state.colorsLocked) {
+      this.state.colorsLocked = false;
+      this.state.lockedColors = null;
+    }
+
     const adjustments = this.controlsComponent.update({
       ...this.state,
       tripTypes: tags["Type"] || [],
@@ -506,6 +535,15 @@ class AnalysisComponent {
     const skipBtn = this.element.querySelector("#btn-skip-empty");
     if (skipBtn) {
       skipBtn.style.display = this.state.metric === "balance" ? "" : "none";
+    }
+
+    const lockBtn = this.element.querySelector("#btn-lock-colors");
+    if (lockBtn) {
+      lockBtn.style.display = showLock ? "" : "none";
+      lockBtn.classList.toggle("active", this.state.colorsLocked);
+      lockBtn.textContent = this.state.colorsLocked
+        ? "Unlock Colors"
+        : "Lock Colors";
     }
 
     this.controlsComponent.updateDisclosureSummaries({
@@ -543,6 +581,47 @@ class AnalysisComponent {
     }
     this.updateControls();
     this.generateChart();
+  }
+
+  handleLockColors() {
+    if (this.state.colorsLocked) {
+      this.state.colorsLocked = false;
+      this.state.lockedColors = null;
+    } else {
+      this.state.lockedColors = this._buildColorMapFromChartData(
+        this.chartData,
+      );
+      this.state.colorsLocked = true;
+    }
+    this.updateControls();
+    this.generateChart();
+  }
+
+  _buildColorMapFromChartData(chartData) {
+    if (!chartData) return {};
+    const { labels, datasets } = chartData;
+    const map = {};
+    if (datasets.length > 1) {
+      // Secondary-grouped: each dataset is one label with a single color
+      datasets.forEach((ds) => {
+        const color = Array.isArray(ds.backgroundColor)
+          ? ds.backgroundColor[0]
+          : ds.backgroundColor;
+        if (ds.label && color) map[ds.label] = color;
+      });
+    } else if (datasets.length === 1) {
+      const ds = datasets[0];
+      if (Array.isArray(ds.backgroundColor)) {
+        // Primary-grouped (no secondary): one color per x-axis label
+        labels.forEach((label, i) => {
+          if (ds.backgroundColor[i]) map[label] = ds.backgroundColor[i];
+        });
+      } else if (ds.label && ds.backgroundColor) {
+        // Secondary-grouped with only one secondary key
+        map[ds.label] = ds.backgroundColor;
+      }
+    }
+    return map;
   }
 
   handleTripTypeExpansionToggle(type, isExpanded) {
@@ -865,6 +944,7 @@ class AnalysisComponent {
         startDate: this.state.startDate,
         endDate: this.state.endDate,
         skipEmptyPeriods: this.state.skipEmptyPeriods,
+        lockedColors: this.state.lockedColors,
         tripTypeMap: tags.TripTypeMap || {},
         expandedTripTypes: this.state.expandedTripTypes,
         tripTypes: tags["Type"] || [],

@@ -393,7 +393,8 @@ export default class AnalysisControls {
       "#analysis-primary-group-select",
     );
     if (primaryGroupSelect) {
-      primaryGroupSelect.disabled = state.metric === "balance";
+      primaryGroupSelect.disabled =
+        state.metric === "balance" || !!state.colorsLocked;
     }
 
     // Update Secondary Group options, excluding whichever value is selected as primary
@@ -401,6 +402,7 @@ export default class AnalysisControls {
       "#analysis-secondary-group-select",
     );
     if (secondaryGroupSelect) {
+      secondaryGroupSelect.disabled = !!state.colorsLocked;
       const allSecondaryOptions = [
         { value: "none", label: "None" },
         { value: "category", label: "Category" },

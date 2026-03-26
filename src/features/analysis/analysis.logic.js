@@ -160,6 +160,7 @@ class AnalysisLogic {
       expandedTripTypes = new Set(),
       tripTypes = [],
       allTripNames = [],
+      lockedColors = null,
     } = aggregationState;
 
     const generateAllDateKeys = (start, end, unit) => {
@@ -388,9 +389,24 @@ class AnalysisLogic {
       "#c0392b", // Pomegranate
     ];
 
-    const getColor = (str, index) => {
-      return CHART_COLORS[index % CHART_COLORS.length];
-    };
+    const getColor = (() => {
+      const usedColors = lockedColors
+        ? new Set(Object.values(lockedColors))
+        : new Set();
+      const unusedPalette = CHART_COLORS.filter((c) => !usedColors.has(c));
+      let unusedIdx = 0;
+      return (label, index) => {
+        if (lockedColors && lockedColors[label] !== undefined) {
+          return lockedColors[label];
+        }
+        if (lockedColors) {
+          const color = unusedPalette[unusedIdx % unusedPalette.length];
+          unusedIdx++;
+          return color;
+        }
+        return CHART_COLORS[index % CHART_COLORS.length];
+      };
+    })();
 
     if (secondaryGroup === "none") {
       let dataPoints = labels.map((k) => primaryMap[k]);
