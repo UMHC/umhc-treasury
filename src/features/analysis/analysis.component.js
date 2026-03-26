@@ -271,6 +271,8 @@ class AnalysisComponent {
             this.state.metric = val;
             if (val === "balance") {
               this.state.chartType = "line";
+              this.state.primaryGroup = "date";
+              this.state.secondaryGroup = "none";
             }
             this.updateControls();
             this.generateChart();
@@ -500,6 +502,12 @@ class AnalysisComponent {
     if (adjustments && adjustments.secondaryGroup) {
       this.state.secondaryGroup = adjustments.secondaryGroup;
     }
+
+    const skipBtn = this.element.querySelector("#btn-skip-empty");
+    if (skipBtn) {
+      skipBtn.style.display = this.state.metric === "balance" ? "" : "none";
+    }
+
     this.controlsComponent.updateDisclosureSummaries({
       scope: this.getScopeSummaryConfig(),
       quickViews: this.getQuickViewsSummaryConfig(),

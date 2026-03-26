@@ -232,7 +232,7 @@ export default class AnalysisControls {
         ),
         el(
           "div",
-          { className: "control-group" },
+          { className: "control-group", id: "primary-group-container" },
           el("label", { for: "analysis-primary-group-select" }, "X-Axis Group"),
           primaryGroupSelect,
         ),
@@ -389,6 +389,13 @@ export default class AnalysisControls {
 
     setVal("#analysis-primary-group-select", state.primaryGroup);
 
+    const primaryGroupSelect = this.element.querySelector(
+      "#analysis-primary-group-select",
+    );
+    if (primaryGroupSelect) {
+      primaryGroupSelect.disabled = state.metric === "balance";
+    }
+
     // Update Secondary Group options, excluding whichever value is selected as primary
     const secondaryGroupSelect = this.element.querySelector(
       "#analysis-secondary-group-select",
@@ -436,7 +443,9 @@ export default class AnalysisControls {
     if (secondaryGroupContainer) {
       const isPieOrDoughnut =
         state.chartType === "pie" || state.chartType === "doughnut";
-      secondaryGroupContainer.style.display = isPieOrDoughnut ? "none" : "flex";
+      const isBalance = state.metric === "balance";
+      secondaryGroupContainer.style.display =
+        isPieOrDoughnut || isBalance ? "none" : "flex";
     }
 
     const expansionContainer = this.element.querySelector(
