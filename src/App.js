@@ -232,7 +232,7 @@ class App {
                   "div",
                   { className: "title-row" },
                   el("h1", { id: "page-title" }, "Dashboard"),
-                  isReadOnly
+                  !canEdit
                     ? el(
                         "span",
                         { className: "mode-badge mode-badge-readonly" },
