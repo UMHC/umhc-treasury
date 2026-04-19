@@ -71,15 +71,19 @@ const AuthService = {
 
         return true;
       } else {
-        throw new Error(response.message || "Login failed.");
+        // Server responded but rejected the login (e.g. wrong passkey)
+        store.setState(
+          "error",
+          response.message || "Login failed. Please check your passkey.",
+        );
+        return false;
       }
     } catch (error) {
-      // Only clear session if the login attempt actually created partial state
-      // Don't clear pre-existing valid sessions
+      // Network/timeout failure — server was not reached
       console.error("Login failed:", error);
       store.setState(
         "error",
-        "Login failed. Please check your passkey and try again.",
+        "Could not reach server. Please check your connection and try again.",
       );
       return false;
     }

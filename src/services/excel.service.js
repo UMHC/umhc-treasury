@@ -10,7 +10,10 @@ function normalizeDateString(dateValue) {
 
   // Handle JavaScript Date objects
   if (dateValue instanceof Date) {
-    return dateValue.toISOString().split("T")[0];
+    const yyyy = dateValue.getFullYear();
+    const mm = String(dateValue.getMonth() + 1).padStart(2, "0");
+    const dd = String(dateValue.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
   }
 
   // Convert to string and trim
@@ -90,7 +93,9 @@ function parseExcelNumber(val) {
   if (val === undefined || val === null || val === "") return null;
   if (typeof val === "number") return val;
   // Remove currency symbols and commas, then parse
-  const cleaned = String(val).replace(/[$,]/g, "");
+  const cleaned = String(val)
+    .replace(/[£$€¥,\s]/g, "")
+    .replace(/[A-Z]{3}$/, "");
   const parsed = parseFloat(cleaned);
   return isNaN(parsed) ? null : parsed;
 }

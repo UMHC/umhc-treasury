@@ -438,7 +438,7 @@ const ApiService = {
           throw new Error(res.message);
         }
 
-        allData = [...allData, ...res.data];
+        allData.push(...res.data);
         hasMore = res.hasMore;
         page++;
       }
