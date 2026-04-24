@@ -339,7 +339,7 @@ class TagsComponent {
         if (!confirmed) return;
       }
       // Enter Edit Mode
-      this.localTags = JSON.parse(JSON.stringify(store.getState("tags")));
+      this.localTags = store.getState("tags");
       this.queue = [];
       this.isEditMode = true;
       this.render();
@@ -535,13 +535,7 @@ class TagsComponent {
     const chunkSize = 10;
     const chunks = [];
 
-    // Use logic helper to format operations
-    // Note: formatOperationsForApi must maintain 1:1 mapping with this.queue
-    // for error recovery to work correctly
-    const formattedOperations = formatOperationsForApi(
-      this.queue,
-      store.getState("tags"),
-    );
+    const formattedOperations = formatOperationsForApi(this.queue);
 
     for (let i = 0; i < formattedOperations.length; i += chunkSize) {
       chunks.push(formattedOperations.slice(i, i + chunkSize));
@@ -554,7 +548,11 @@ class TagsComponent {
           skipLoading: true,
         });
         if (!result.success) {
-          throw new Error(result.message || "Failed to process tag operations");
+          const err = new Error(
+            result.message || "Failed to process tag operations",
+          );
+          err.appliedCount = result.appliedOperations?.length ?? 0;
+          throw err;
         }
         processedCount += chunk.length;
       }
@@ -567,7 +565,7 @@ class TagsComponent {
       this.queue = [];
     } catch (error) {
       console.error("Failed to save tags:", error);
-      // Clear successfully processed operations to prevent re-submission
+      processedCount += error.appliedCount || 0;
       this.queue = this.queue.slice(processedCount);
       await this.modal.alert(
         `Failed to save tags: ${error.message}\n\n` +

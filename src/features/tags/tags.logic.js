@@ -391,14 +391,14 @@ export const optimizeQueue = (queue, originalTags = null) => {
 
 /**
  * Formats the edit queue into API operations.
+ * Intentionally does NOT call optimizeQueue so the output is 1:1 with
+ * the input queue — required for accurate error-recovery slicing in handleSave.
  *
  * @param {Array} queue
- * @param {Object} originalTags - Optional. Map of existing tags.
  * @returns {Array} Array of operations for the API
  */
-export const formatOperationsForApi = (queue, originalTags = null) => {
-  const optimizedQueue = optimizeQueue(queue, originalTags);
-  return optimizedQueue
+export const formatOperationsForApi = (queue) => {
+  return queue
     .map((op) => {
       if (op.type === "add") return [null, op.value, "add", op.tagType];
       if (op.type === "delete") return [op.value, null, "delete", op.tagType];
