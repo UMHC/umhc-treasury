@@ -6,6 +6,7 @@ import {
   formatDateForInput,
   parseAmount,
   parseDate,
+  getLocalDayBounds,
 } from "../../core/utils.js";
 import { calculateFinancials } from "../../core/financial.logic.js";
 
@@ -97,15 +98,12 @@ class AnalysisLogic {
       selectedTrips,
       tripStatusFilter,
     } = filterState;
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+    const bounds = getLocalDayBounds(startDate, endDate);
+    if (!bounds) {
       console.warn("getFilteredData: Invalid date range provided");
       return [];
     }
-
-    end.setHours(23, 59, 59, 999); // Include the whole end day
+    const { start, end } = bounds;
 
     return expenses.filter((item) => {
       const date = parseDate(item.Date);
@@ -307,12 +305,14 @@ class AnalysisLogic {
       const labels = [];
       const values = [];
 
-      const calculationStart = new Date(startDate);
+      const calculationStart =
+        getLocalDayBounds(startDate, endDate)?.start ?? parseDate(startDate);
 
-      // Use adjustedOpeningBalance as the true starting point.
-      // This accounts for Manual transactions (which adjust the start)
-      // while the loop below accounts for their timeline effect.
-      // Result: Correct running balance at any point in time.
+      // `adjustedOpeningBalance` is the balance BEFORE Manual transactions —
+      // i.e. openingBalance − netManual. The loop below walks every transaction
+      // (Manuals INCLUDED) up to calculationStart, so the Manuals re-add their
+      // net contribution and we land at: openingBalance + netExcelPreWindow.
+      // Do NOT skip Manuals here; doing so would shift the chart by −netManual.
       const parsedOpeningBalance = parseFloat(openingBalance) || 0;
       let adjustedOpeningBalance = parsedOpeningBalance;
       try {

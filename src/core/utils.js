@@ -157,6 +157,27 @@ export function getDateRange(timeframe) {
   }
 }
 
+/**
+ * Returns local-time day boundaries for a [start, end] window.
+ * Both inputs are parsed via parseDate() so YYYY-MM-DD strings are treated
+ * as local midnight — the same frame transaction dates use — preventing
+ * the UTC/local mismatch that came from `new Date("YYYY-MM-DD")`.
+ * @param {string|Date} startInput
+ * @param {string|Date} endInput
+ * @returns {{start: Date, end: Date}|null}
+ */
+export function getLocalDayBounds(startInput, endInput) {
+  const parsedStart = parseDate(startInput);
+  const parsedEnd = parseDate(endInput);
+  if (!parsedStart || !parsedEnd) return null;
+  // Clone to avoid mutating Date instances that callers passed in.
+  const start = new Date(parsedStart.getTime());
+  const end = new Date(parsedEnd.getTime());
+  start.setHours(0, 0, 0, 0);
+  end.setHours(23, 59, 59, 999);
+  return { start, end };
+}
+
 export function filterTransactionsByTimeframe(transactions, timeframe) {
   if (!transactions || transactions.length === 0) return [];
   if (timeframe === "all_time") return transactions;

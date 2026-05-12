@@ -15,6 +15,12 @@ import { parseAmount } from "./utils.js";
  *   Current Balance = Adjusted Opening Balance + Total Income - Total Expenses
  *   (Where the net effect of manual transactions on the Current Balance is zero).
  *
+ * NOTE: `adjustedOpeningBalance` is the "pre-Manual" seed
+ * (= openingBalance − netManual). When reconstructing a running balance over
+ * time, Manual rows are still expected to be summed on top of it — that is
+ * what brings the balance back to `openingBalance` at the Manual→Excel
+ * boundary. See analysis.logic.js#aggregateData (balance branch).
+ *
  * @param {number|string} openingBalance - The configured initial balance.
  * @param {Array} transactions - List of all transactions.
  * @returns {object} - { manualOffset, adjustedOpeningBalance, currentBalance, totalIncome, totalExpenses }
