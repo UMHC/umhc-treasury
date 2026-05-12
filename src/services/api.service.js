@@ -33,6 +33,24 @@ const READ_ONLY_MESSAGE =
  * proxy server that can handle proper OAuth2/JWT flows, eliminating JSONP.
  */
 
+// Produces a deterministic JSON string by sorting object keys recursively.
+// Mirrors Service_Auth._canonicalize on the GAS backend; both ends must agree
+// byte-for-byte or HMAC signatures will not match.
+function canonicalStringify(value) {
+  const canonicalize = (v) => {
+    if (v === null || typeof v !== "object") return v;
+    if (Array.isArray(v)) return v.map(canonicalize);
+    const out = {};
+    Object.keys(v)
+      .sort()
+      .forEach((k) => {
+        out[k] = canonicalize(v[k]);
+      });
+    return out;
+  };
+  return JSON.stringify(canonicalize(value));
+}
+
 // Private variables to hold session credentials
 let _sessionId = null;
 let _sessionKey = null;
@@ -180,7 +198,7 @@ const request = (action, params = {}, options = {}) => {
       const value = finalParams[key];
       sortedParams[key] =
         typeof value === "object" && value !== null
-          ? JSON.stringify(value)
+          ? canonicalStringify(value)
           : String(value);
     });
 
@@ -213,7 +231,7 @@ const request = (action, params = {}, options = {}) => {
     const encoder = new TextEncoder();
     const keyData = encoder.encode(secret);
     const payload = encoder.encode(
-      action + "|" + timestamp + "|" + JSON.stringify(params),
+      action + "|" + timestamp + "|" + canonicalStringify(params),
     );
 
     const cryptoKey = await crypto.subtle.importKey(

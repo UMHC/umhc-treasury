@@ -52,6 +52,18 @@ const Service_Auth = {
     };
   },
 
+  _canonicalize: function (value) {
+    if (value === null || typeof value !== "object") return value;
+    if (Array.isArray(value)) return value.map((v) => this._canonicalize(v));
+    const out = {};
+    Object.keys(value)
+      .sort()
+      .forEach((k) => {
+        out[k] = this._canonicalize(value[k]);
+      });
+    return out;
+  },
+
   _buildPayload: function (action, timestamp, allParams) {
     const ignoredKeys = ["action", "timestamp", "signature", "callback"];
     const paramKeys = Object.keys(allParams || {}).filter(
@@ -62,7 +74,13 @@ const Service_Auth = {
     const sortedParams = {};
     paramKeys.forEach((k) => (sortedParams[k] = allParams[k]));
 
-    return action + "|" + timestamp + "|" + JSON.stringify(sortedParams);
+    return (
+      action +
+      "|" +
+      timestamp +
+      "|" +
+      JSON.stringify(this._canonicalize(sortedParams))
+    );
   },
 
   _computeSignatureHex: function (payload, secretKey) {
