@@ -945,6 +945,19 @@ function _validateSplitRequest(original, splits) {
         message: "Each split must have a description and amount.",
       };
     }
+    if (split.Type !== "Income" && split.Type !== "Expense") {
+      return {
+        success: false,
+        message: 'Each split must have Type "Income" or "Expense".',
+      };
+    }
+    const amt = parseFloat(split.Amount);
+    if (isNaN(amt) || amt < 0) {
+      return {
+        success: false,
+        message: "Each split amount must be a positive number.",
+      };
+    }
   }
 
   const rowIndex = parseInt(original.row);
@@ -961,21 +974,41 @@ function _validateSplitRequest(original, splits) {
     original.Expense != null && original.Expense !== ""
       ? parseFloat(original.Expense)
       : null;
-  const originalAmount =
-    incomeVal !== null ? incomeVal : expenseVal !== null ? expenseVal : 0;
 
-  const splitSum = splits.reduce(
-    (sum, split) => sum + parseFloat(split.Amount || 0),
+  if (incomeVal !== null && expenseVal !== null) {
+    return {
+      success: false,
+      message:
+        "Cannot split a transaction with both Income and Expense populated.",
+    };
+  }
+  if (incomeVal === null && expenseVal === null) {
+    return {
+      success: false,
+      message: "Cannot split a transaction with no Income or Expense amount.",
+    };
+  }
+
+  // Signed-net check: each split contributes +Amount (Income) or -Amount
+  // (Expense). Their signed sum must match the parent's signed net.
+  const parentNet = (incomeVal !== null ? incomeVal : 0) -
+    (expenseVal !== null ? expenseVal : 0);
+  const signedSum = splits.reduce(
+    (sum, split) =>
+      sum +
+      (split.Type === "Income"
+        ? parseFloat(split.Amount)
+        : -parseFloat(split.Amount)),
     0,
   );
   const tolerance = 0.01; // Allow for rounding errors
 
-  if (Math.abs(originalAmount - splitSum) > tolerance) {
+  if (Math.abs(parentNet - signedSum) > tolerance) {
     return {
       success: false,
-      message: `Split amounts (${splitSum.toFixed(
+      message: `Split net (${signedSum.toFixed(
         2,
-      )}) must sum to original amount (${originalAmount.toFixed(2)}).`,
+      )}) must equal original net (${parentNet.toFixed(2)}).`,
     };
   }
 
@@ -1085,6 +1118,21 @@ function _prepareSplitData(financeSheet, original, splits) {
   );
   const originalRowValues = originalRowRange.getValues()[0];
 
+  const hasIncome =
+    originalRowValues[incomeIndex] != null &&
+    originalRowValues[incomeIndex] !== "";
+  const hasExpense =
+    originalRowValues[expenseIndex] != null &&
+    originalRowValues[expenseIndex] !== "";
+  if (hasIncome === hasExpense) {
+    return {
+      success: false,
+      message: hasIncome
+        ? "Sheet row has both Income and Expense populated; cannot determine split sign."
+        : "Sheet row has no Income or Expense amount to split.",
+    };
+  }
+
   // Update ID in the in-memory array for archive rows
   originalRowValues[idIndex] = splitGroupId;
 
@@ -1104,10 +1152,7 @@ function _prepareSplitData(financeSheet, original, splits) {
       childRow[tripEventIndex] = split.TripEvent;
     if (split.Category !== undefined) childRow[categoryIndex] = split.Category;
 
-    const isIncome =
-      originalRowValues[incomeIndex] != null &&
-      originalRowValues[incomeIndex] !== "";
-    if (isIncome) {
+    if (split.Type === "Income") {
       childRow[incomeIndex] = split.Amount;
       childRow[expenseIndex] = "";
     } else {

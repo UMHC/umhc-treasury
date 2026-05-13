@@ -729,6 +729,12 @@
   align-items: center;
 }
 
+/* Override .modal-body input (margin-top: 10px) so split inputs align with
+   the type toggle button on the row baseline. */
+.split-row-main .theme-input {
+  margin: 0;
+}
+
 .split-row-tags {
   display: flex;
   gap: 6px;
@@ -757,6 +763,37 @@
 
 .split-input-amount {
   flex: 1;
+}
+
+.split-type-toggle {
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  height: 38px;
+  min-width: 90px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 0.9em;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+}
+
+.split-type-toggle--income {
+  background-color: #2e7d32;
+}
+
+.split-type-toggle--income:hover {
+  background-color: #388e3c;
+}
+
+.split-type-toggle--expense {
+  background-color: #c62828;
+}
+
+.split-type-toggle--expense:hover {
+  background-color: #d32f2f;
 }
 
 .split-remove-btn {

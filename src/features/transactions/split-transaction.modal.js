@@ -56,24 +56,34 @@ export default class SplitTransactionModal {
       this.originalAmount = income;
       this.isIncome = income > 0;
     }
+    this.parentSignedNet = this.isIncome
+      ? this.originalAmount
+      : -this.originalAmount;
+    const defaultType = this.isIncome ? "Income" : "Expense";
 
     if (existingSplits) {
       this.mode = "edit";
       this.groupId = groupId;
-      this.splits = existingSplits.map((s, i) => ({
-        description: s.Description || s.description || "", // handle both cases
-        amount: this._parseSplitAmount(s),
-        partNumber: i + 1,
-        category: s.Category ?? s.category ?? "",
-        tripEvent: s["Trip/Event"] ?? s.tripEvent ?? "",
-      }));
+      this.splits = existingSplits.map((s, i) => {
+        const inc = parseAmount(s.Income);
+        const exp = parseAmount(s.Expense);
+        const type = inc !== 0 ? "Income" : exp !== 0 ? "Expense" : defaultType;
+        return {
+          description: s.Description || s.description || "", // handle both cases
+          amount: Math.abs(this._parseSplitAmount(s)),
+          type,
+          partNumber: i + 1,
+          category: s.Category ?? s.category ?? "",
+          tripEvent: s["Trip/Event"] ?? s.tripEvent ?? "",
+        };
+      });
 
-      // Validate that existing splits sum to original amount
-      const existingTotal = this.splits.reduce(
-        (sum, s) => sum + (s.amount || 0),
+      // Validate that existing splits net to parent's signed amount
+      const existingNet = this.splits.reduce(
+        (sum, s) => sum + (s.type === "Income" ? s.amount : -s.amount),
         0,
       );
-      if (Math.abs(this.originalAmount - existingTotal) >= 0.01) {
+      if (Math.abs(this.parentSignedNet - existingNet) >= 0.01) {
         await new ModalComponent().alert(
           "Existing splits do not match the original transaction amount. Cannot edit.",
         );
@@ -87,6 +97,7 @@ export default class SplitTransactionModal {
         {
           description: (transaction.Description ?? "Transaction") + " (Part 1)",
           amount: 0,
+          type: defaultType,
           partNumber: 1,
           category: srcCategory,
           tripEvent: srcTripEvent,
@@ -94,6 +105,7 @@ export default class SplitTransactionModal {
         {
           description: (transaction.Description ?? "Transaction") + " (Part 2)",
           amount: 0,
+          type: defaultType,
           partNumber: 2,
           category: srcCategory,
           tripEvent: srcTripEvent,
@@ -302,10 +314,33 @@ export default class SplitTransactionModal {
         value: split.amount || "",
         placeholder: "0.00",
         step: "0.01",
+        min: "0",
       });
       amountInput.addEventListener("input", (e) => {
         const val = parseFloat(e.target.value);
-        this.splits[e.target.dataset.index].amount = isNaN(val) ? 0 : val;
+        this.splits[e.target.dataset.index].amount =
+          isNaN(val) || val < 0 ? 0 : val;
+        this.updateCalculations();
+      });
+
+      const typeToggle = el(
+        "button",
+        {
+          type: "button",
+          id: `split-type-${index}`,
+          "aria-label": `Type for split ${index + 1} (click to toggle)`,
+          className: `split-type-toggle split-type-toggle--${
+            split.type === "Income" ? "income" : "expense"
+          }`,
+          dataset: { index },
+        },
+        split.type === "Income" ? "Income" : "Expense",
+      );
+      typeToggle.addEventListener("click", (e) => {
+        const i = e.currentTarget.dataset.index;
+        this.splits[i].type =
+          this.splits[i].type === "Income" ? "Expense" : "Income";
+        this.renderSplits();
         this.updateCalculations();
       });
 
@@ -337,6 +372,7 @@ export default class SplitTransactionModal {
           "div",
           { className: "split-row-main" },
           descInput,
+          typeToggle,
           amountInput,
           removeBtn,
         ),
@@ -430,6 +466,7 @@ export default class SplitTransactionModal {
     this.splits.push({
       description: baseDesc + " (Part " + nextPart + ")",
       amount: 0,
+      type: this.isIncome ? "Income" : "Expense",
       partNumber: nextPart,
       category: this.transaction.Category ?? "",
       tripEvent: this.transaction["Trip/Event"] ?? "",
@@ -449,10 +486,14 @@ export default class SplitTransactionModal {
   }
 
   updateCalculations() {
-    const total = this.splits.reduce((sum, s) => sum + (s.amount || 0), 0);
-    const remaining = this.originalAmount - total;
+    const signedSum = this.splits.reduce(
+      (sum, s) =>
+        sum + (s.type === "Income" ? s.amount || 0 : -(s.amount || 0)),
+      0,
+    );
+    const remaining = this.parentSignedNet - signedSum;
 
-    this.totalDisplay.textContent = formatCurrency(total);
+    this.totalDisplay.textContent = formatCurrency(Math.abs(signedSum));
     this.remainingDisplay.textContent = formatCurrency(remaining);
 
     // Tolerance for floating point errors
@@ -486,8 +527,12 @@ export default class SplitTransactionModal {
 
   async handleSubmit() {
     // Final validation
-    const total = this.splits.reduce((sum, s) => sum + (s.amount || 0), 0);
-    if (Math.abs(this.originalAmount - total) >= 0.01) {
+    const signedSum = this.splits.reduce(
+      (sum, s) =>
+        sum + (s.type === "Income" ? s.amount || 0 : -(s.amount || 0)),
+      0,
+    );
+    if (Math.abs(this.parentSignedNet - signedSum) >= 0.01) {
       await new ModalComponent().alert(
         "Total split amount must equal original amount.",
       );
@@ -510,6 +555,7 @@ export default class SplitTransactionModal {
     const splitsPayload = this.splits.map((s) => ({
       Description: s.description,
       Amount: s.amount,
+      Type: s.type,
       Category: s.category ?? "",
       TripEvent: s.tripEvent ?? "",
     }));
